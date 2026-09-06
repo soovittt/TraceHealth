@@ -1,0 +1,159 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Color tokens as RGB channels so Tailwind's /alpha utilities keep working. */
+:root {
+  color-scheme: light;
+  --ink-900: 24 24 27;
+  --ink-800: 39 39 42;
+  --ink-700: 63 63 70;
+  --ink-600: 82 82 91;
+  --ink-500: 113 113 122;
+  --ink-400: 161 161 170;
+  --ink-300: 212 212 216;
+  --line: 231 231 234;
+  --line-soft: 239 239 241;
+  --line-strong: 220 220 224;
+  --canvas: 246 246 247;
+  --surface: 255 255 255;
+  --brand: 24 24 27;
+  --brand-fg: 255 255 255;
+  --accent: 91 91 214;
+  --accent-soft: 238 238 251;
+  --accent-line: 215 215 245;
+  --accent-hover: 81 81 201;
+  --good: 48 164 108;
+  --good-soft: 231 246 238;
+  --good-ink: 28 122 77;
+  --warn: 161 92 7;
+  --warn-soft: 251 241 224;
+  --warn-line: 240 217 172;
+  --bad: 220 61 67;
+  --bad-soft: 253 234 234;
+  --bad-ink: 192 52 58;
+}
+
+.dark {
+  color-scheme: dark;
+  --ink-900: 244 244 245;
+  --ink-800: 228 228 231;
+  --ink-700: 201 201 207;
+  --ink-600: 161 161 170;
+  --ink-500: 139 139 146;
+  --ink-400: 113 113 122;
+  --ink-300: 75 75 82;
+  --line: 41 42 46;
+  --line-soft: 32 33 36;
+  --line-strong: 54 55 60;
+  --canvas: 13 14 16;
+  --surface: 23 24 27;
+  --brand: 244 244 245;
+  --brand-fg: 23 24 27;
+  --accent: 129 129 240;
+  --accent-soft: 37 37 58;
+  --accent-line: 58 58 92;
+  --accent-hover: 146 146 245;
+  --good: 63 184 124;
+  --good-soft: 20 40 30;
+  --good-ink: 111 219 165;
+  --warn: 208 138 58;
+  --warn-soft: 42 33 19;
+  --warn-line: 74 58 30;
+  --bad: 229 90 95;
+  --bad-soft: 42 23 24;
+  --bad-ink: 240 160 163;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: theme("colors.canvas");
+  color: theme("colors.ink.900");
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+@layer base {
+  ::selection {
+    background: theme("colors.accent.soft");
+  }
+}
+
+@layer components {
+  /* Surfaces are defined by a hairline border, not a shadow. */
+  .card {
+    @apply rounded-lg border border-line bg-surface;
+  }
+  .hairline {
+    @apply border-line;
+  }
+
+  /* Micro-label used for provenance / status — monochrome, uppercase, quiet. */
+  .tag {
+    @apply inline-flex items-center gap-1 rounded border border-line bg-surface px-1.5 py-0.5 text-2xs font-medium uppercase tracking-wide text-ink-500;
+  }
+
+  .btn {
+    @apply inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40;
+  }
+  /* Primary = near-black in light, near-white in dark (adapts via --brand). */
+  .btn-primary {
+    @apply btn bg-brand text-brand-fg hover:opacity-90;
+  }
+  .btn-secondary {
+    @apply btn border border-line-strong bg-surface text-ink-800 hover:bg-canvas;
+  }
+  .btn-ghost {
+    @apply btn text-ink-600 hover:bg-line-soft;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-sm outline-none placeholder:text-ink-400 focus:border-accent-line focus:ring-2 focus:ring-accent-soft;
+  }
+
+  /* Section eyebrow label. */
+  .eyebrow {
+    @apply text-2xs font-semibold uppercase tracking-[0.06em] text-ink-400;
+  }
+
+  /* Keyboard hint chip. */
+  .kbd {
+    @apply inline-flex h-4 min-w-4 items-center justify-center rounded border border-line bg-canvas px-1 font-mono text-2xs text-ink-500;
+  }
+}
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  .mono {
+    font-family: theme("fontFamily.mono");
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Thin, unobtrusive scrollbars. */
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--ink-400) / 0.4);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--ink-400) / 0.6);
+  background-clip: content-box;
+}
