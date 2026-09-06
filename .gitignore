@@ -1,0 +1,10 @@
+node_modules
+dist
+.env.local
+.env
+*.local
+.DS_Store
+.context
+.reducer
+.claude
+convex/_generated
