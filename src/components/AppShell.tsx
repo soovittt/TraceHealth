@@ -7,6 +7,7 @@ import { Mark } from "./brand";
 import SearchBar from "./SearchBar";
 import EvidencePanel from "./EvidencePanel";
 import AssistantDock from "./AssistantDock";
+import ExportMenu from "./ExportMenu";
 import HealthHome from "./HealthHome";
 import Timeline from "./Timeline";
 import MetricGraph from "./MetricGraph";
@@ -14,6 +15,7 @@ import Compare from "./Compare";
 import Conflicts from "./Conflicts";
 import Integrations from "./Integrations";
 import Reports from "./Reports";
+import ImportScreen from "./ImportScreen";
 import DoctorView from "./DoctorView";
 
 const NAV: { key: any; label: string; hint: string; icon: string }[] = [
@@ -23,8 +25,9 @@ const NAV: { key: any; label: string; hint: string; icon: string }[] = [
   { key: "compare", label: "Compare", hint: "4", icon: "M6 2.5v11M3 5.5 6 3l3 2.5M10 13.5v-11M13 10.5 10 13 7 10.5" },
   { key: "conflicts", label: "Review", hint: "5", icon: "M8 2.5 14 13H2zM8 6.5v3.5M8 11.5h.01" },
   { key: "integrations", label: "Connections", hint: "6", icon: "M6.5 9.5 4.8 11.2a2.4 2.4 0 0 1-3.4-3.4l1.7-1.7M9.5 6.5l1.7-1.7a2.4 2.4 0 0 1 3.4 3.4l-1.7 1.7M6 10l4-4" },
-  { key: "reports", label: "Reports", hint: "7", icon: "M4 2h6l3 3v9H4zM10 2v3h3M6 8h5M6 11h5" },
-  { key: "ask", label: "Ask AI", hint: "8", icon: "M8 2l1.1 3.1L12.2 6.2 9.1 7.3 8 10.4 6.9 7.3 3.8 6.2 6.9 5.1zM12.5 10l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4L11 11.9l1.4-.5z" },
+  { key: "import", label: "Add data", hint: "7", icon: "M8 3v7m0 0L5 7m3 3 3-3M3 12.5h10" },
+  { key: "reports", label: "Reports", hint: "8", icon: "M4 2h6l3 3v9H4zM10 2v3h3M6 8h5M6 11h5" },
+  { key: "ask", label: "Ask AI", hint: "9", icon: "M8 2l1.1 3.1L12.2 6.2 9.1 7.3 8 10.4 6.9 7.3 3.8 6.2 6.9 5.1zM12.5 10l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4L11 11.9l1.4-.5z" },
 ];
 
 export default function AppShell() {
@@ -128,6 +131,8 @@ export default function AppShell() {
             Share with clinician
           </button>
 
+          <ExportMenu />
+
           {/* account row */}
           <div className="flex items-center gap-2.5 rounded-md px-1.5 py-1">
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand text-2xs font-semibold text-brand-fg">
@@ -201,8 +206,8 @@ export default function AppShell() {
               {view === "compare" && <Compare />}
               {view === "conflicts" && <Conflicts />}
               {view === "integrations" && <Integrations />}
+              {view === "import" && <ImportScreen />}
               {view === "reports" && <Reports />}
-              {view === "ask" && <HealthHome />}
             </>
           )}
         </main>
