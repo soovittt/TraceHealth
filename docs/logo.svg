@@ -1,0 +1,10 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TraceHealth">
+  <rect width="120" height="120" rx="28" fill="#0B0F17"/>
+  <rect x="0.5" y="0.5" width="119" height="119" rx="27.5" stroke="#FFFFFF" stroke-opacity="0.08"/>
+  <g transform="translate(28,28) scale(4)">
+    <path d="M2 8c2.2 0 2.2-4 4-4s1.8 8 4 8 2.2-4 4-4"
+          stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+    <circle cx="2" cy="8" r="1.6" fill="#FFFFFF"/>
+    <circle cx="14" cy="8" r="1.6" fill="#34D399"/>
+  </g>
+</svg>
