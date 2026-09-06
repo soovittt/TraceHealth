@@ -5,7 +5,7 @@ import { useStore } from "../lib/store";
 import { fmtDate } from "../lib/format";
 
 export default function SearchBar() {
-  const { patientId, openMetric, go } = useStore();
+  const { patientId, openMetric, go, showEvidence } = useStore();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -36,6 +36,13 @@ export default function SearchBar() {
     setOpen(false);
     setQ("");
     openMetric(code);
+  }
+
+  function openDoc(documentId?: string, page?: number) {
+    setOpen(false);
+    setQ("");
+    if (documentId) showEvidence({ documentId: documentId as any, page });
+    else go("timeline");
   }
 
   return (
@@ -71,10 +78,10 @@ export default function SearchBar() {
                 {results.year} · {results.encounters.length} encounters · {results.observations.length} labs
               </div>
               {results.encounters.map((e: any) => (
-                <div key={e._id} className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-sm hover:bg-canvas">
+                <button key={e._id} onClick={() => openDoc(e.documentId, e.page)} className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-canvas">
                   <span className="text-ink-800">{e.title}</span>
                   <span className="mono text-2xs text-ink-400">{fmtDate(e.date)}</span>
-                </div>
+                </button>
               ))}
               <button className="mt-0.5 w-full rounded-md px-2.5 py-1.5 text-left text-sm text-accent hover:bg-canvas" onClick={() => { setOpen(false); go("timeline"); }}>
                 Open full timeline →
@@ -84,10 +91,10 @@ export default function SearchBar() {
 
           {results.kind === "results" && (
             <div>
-              <Group label="Medications" items={results.medications.map((m: any) => m.name)} />
-              <Group label="Conditions" items={results.conditions.map((c: any) => c.name)} />
-              <Group label="Visits" items={results.encounters.map((e: any) => e.title)} />
-              <Group label="Missing records" items={results.missing.map((m: any) => `${m.label} · ${m.org}`)} />
+              <Group label="Medications" items={results.medications.map((m: any) => ({ label: m.name, onClick: () => openDoc(m.documentId, m.page) }))} />
+              <Group label="Conditions" items={results.conditions.map((c: any) => ({ label: c.name, onClick: () => openDoc(c.documentId, c.page) }))} />
+              <Group label="Visits" items={results.encounters.map((e: any) => ({ label: e.title, onClick: () => openDoc(e.documentId, e.page) }))} />
+              <Group label="Missing records" items={results.missing.map((m: any) => ({ label: `${m.label} · ${m.org}`, onClick: () => openDoc(m.referencedInDocumentId) }))} />
               {results.medications.length + results.conditions.length + results.encounters.length + results.missing.length === 0 && (
                 <div className="px-2.5 py-3 text-sm text-ink-400">No matches.</div>
               )}
@@ -99,13 +106,13 @@ export default function SearchBar() {
   );
 }
 
-function Group({ label, items }: { label: string; items: string[] }) {
+function Group({ label, items }: { label: string; items: { label: string; onClick: () => void }[] }) {
   if (!items.length) return null;
   return (
     <div className="mb-0.5">
       <div className="eyebrow px-2 py-1.5">{label}</div>
-      {items.map((t, i) => (
-        <div key={i} className="rounded-md px-2.5 py-1.5 text-sm text-ink-800 hover:bg-canvas">{t}</div>
+      {items.map((it, i) => (
+        <button key={i} onClick={it.onClick} className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm text-ink-800 hover:bg-canvas">{it.label}</button>
       ))}
     </div>
   );

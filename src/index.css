@@ -157,3 +157,22 @@ body {
   background: rgb(var(--ink-400) / 0.6);
   background-clip: content-box;
 }
+
+/* Print: strip app chrome, keep the clinical snapshot on white. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
