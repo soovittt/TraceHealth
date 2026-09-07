@@ -195,8 +195,8 @@ function EmptyRecord({ name, go }: { name: string; go: (v: any) => void }) {
   const first = name.split(" ")[0] || "there";
   const cards = [
     { t: "Connect a provider", d: "Pull records over FHIR", tag: "Recommended", to: "integrations" },
-    { t: "Import a document", d: "PDF, CSV, JSON or paste", tag: "", to: "import" },
-    { t: "Forward by email", d: "Send a lab to your inbox", tag: "", to: "integrations" },
+    { t: "Import a document", d: "Paste text, or a FHIR/JSON file", tag: "", to: "import" },
+    { t: "Add manually", d: "Enter a lab, med or condition", tag: "", to: "import" },
   ];
   return (
     <div className="mx-auto max-w-2xl animate-fade-in">

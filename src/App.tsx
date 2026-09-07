@@ -4,7 +4,6 @@ import { api } from "../convex/_generated/api";
 import { StoreProvider, useStore } from "./lib/store";
 import Landing from "./components/Landing";
 import Auth from "./components/Auth";
-import ImportScreen from "./components/ImportScreen";
 import AppShell from "./components/AppShell";
 import DoctorView from "./components/DoctorView";
 import ChatPage from "./components/ChatPage";
@@ -42,7 +41,6 @@ function Router() {
   if (view === "landing") return <Landing />;
   if (view === "auth") return <Auth />;
   if (view === "chat") return <ChatPage />;
-  if (view === "import") return <ImportScreen />;
   return <AppShell />;
 }
 

@@ -200,28 +200,6 @@ export default function Integrations() {
             </div>
           );
         })}
-        {/* other rails, honestly not wired */}
-        {[
-          ["Oracle Health (Cerner)", "SMART on FHIR patient access.", "oracle.com"],
-          ["Apple Health", "Clinical records + wearables via FHIR.", "apple.com"],
-          ["1upHealth / Flexpa", "Aggregator — thousands of systems at once.", "1up.health"],
-        ].map(([name, blurb, domain]) => (
-          <div key={name} className="card flex items-start justify-between gap-3 p-4 opacity-70">
-            <div className="flex items-start gap-3">
-              <ProviderLogo domain={domain} label={name} />
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-ink-900">{name}</span>
-                  <span className="tag">Coming soon</span>
-                </div>
-                <div className="mt-0.5 text-xs text-ink-500">{blurb}</div>
-              </div>
-            </div>
-            <button className="btn-ghost shrink-0 text-xs" disabled>
-              Soon
-            </button>
-          </div>
-        ))}
       </div>
 
       {/* find your provider — real directory search */}

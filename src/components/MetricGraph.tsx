@@ -1,12 +1,20 @@
-import { useQuery } from "convex/react";
+import { useQuery, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { TrendChart } from "./charts";
 import { fmtMonthYear, fmtNum } from "../lib/format";
+import { downloadText } from "../lib/download";
 
 export default function MetricGraph() {
   const { patientId, metricCode, openMetric, showEvidence } = useStore();
+  const convex = useConvex();
   const code = metricCode ?? "LDL";
+
+  async function exportCsv() {
+    if (!patientId) return;
+    const res = await convex.query(api.export.exportMetricCsv, { patientId, code });
+    if (res) downloadText(res.filename, res.mime, res.content);
+  }
   const metric = useQuery(api.health.getMetric, patientId ? { patientId, code } : "skip");
   const metrics = useQuery(api.health.listMetrics, patientId ? { patientId } : "skip");
 
@@ -50,10 +58,20 @@ export default function MetricGraph() {
             <span className="text-xs text-ink-400">{metric.unit}</span>
           </div>
         </div>
-        <div className="flex gap-6 text-right">
+        <div className="flex items-end gap-6 text-right">
           <Stat label="Readings" value={String(metric.series.length)} />
           <Stat label="Peak" value={fmtNum(metric.peak)} />
           <Stat label="Latest" value={fmtNum(metric.last)} />
+          <button
+            onClick={exportCsv}
+            title="Download this metric as CSV"
+            className="btn-ghost gap-1.5 px-2 py-1 text-xs"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2v8m0 0 3-3M8 10 5 7M3 12.5h10" />
+            </svg>
+            CSV
+          </button>
         </div>
       </div>
 

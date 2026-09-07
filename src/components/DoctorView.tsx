@@ -1,4 +1,4 @@
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import EvidencePanel from "./EvidencePanel";
@@ -6,7 +6,8 @@ import { Wordmark } from "./brand";
 import { fmtDate, fmtNum } from "../lib/format";
 
 export default function DoctorView({ preview = false }: { preview?: boolean }) {
-  const { patientId, shareToken, go, showEvidence } = useStore();
+  const { patientId, shareToken, go, openAuth, showEvidence } = useStore();
+  const { isAuthenticated } = useConvexAuth();
   const share = useQuery(api.health.getShare, shareToken ? { token: shareToken } : "skip");
   const resolvedId = preview ? patientId : share?.patientId ?? null;
   const snap = useQuery(
@@ -16,6 +17,17 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
 
   if (shareToken && share === null) return <Centered>This share link is invalid.</Centered>;
   if (shareToken && share?.expired) return <Centered>This share link has expired.</Centered>;
+  // Preview requires a signed-in patient. Don't hang on a hard-refresh when unauthenticated.
+  if (preview && !patientId && !isAuthenticated) {
+    return (
+      <Centered>
+        <div className="text-center">
+          <p>Sign in to preview your clinical snapshot.</p>
+          <button className="btn-primary mt-3" onClick={() => openAuth("signIn")}>Sign in</button>
+        </div>
+      </Centered>
+    );
+  }
   if (!snap) return <Centered>Loading clinical snapshot…</Centered>;
 
   return (
@@ -26,11 +38,19 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
             <Wordmark />
             <span className="hidden text-2xs text-ink-400 sm:inline">/ Clinical snapshot</span>
           </div>
-          {preview ? (
-            <button className="btn-ghost text-xs" onClick={() => go("home")}>← Back to record</button>
-          ) : (
-            <span className="text-2xs text-ink-400">Shared by patient · read-only</span>
-          )}
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary no-print gap-1.5 px-2.5 py-1 text-xs" onClick={() => window.print()} title="Print or save as PDF">
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 6V2.5h8V6M4 12H2.5V6.5h11V12H12M4 9.5h8V14H4z" />
+              </svg>
+              Print / PDF
+            </button>
+            {preview ? (
+              <button className="btn-ghost no-print text-xs" onClick={() => go("home")}>← Back to record</button>
+            ) : (
+              <span className="no-print text-2xs text-ink-400">Shared by patient · read-only</span>
+            )}
+          </div>
         </div>
       </header>
 

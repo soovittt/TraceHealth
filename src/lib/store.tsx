@@ -67,15 +67,19 @@ const VIEW_TO_PATH: Record<View, string> = {
   doctor: "/doctor",
 };
 
-function pathFor(view: View, authMode: AuthMode, shareToken: string | null): string {
+function pathFor(view: View, authMode: AuthMode, shareToken: string | null, metricCode?: string | null): string {
   if (shareToken) return `/share/${shareToken}`;
   if (view === "auth") return authMode === "signUp" ? "/signup" : "/signin";
+  if (view === "metric" && metricCode) return `/trends/${encodeURIComponent(metricCode)}`;
   return VIEW_TO_PATH[view] ?? "/";
 }
 
-function parsePath(pathname: string): { view: View; authMode?: AuthMode; shareToken?: string } {
+function parsePath(pathname: string): { view: View; authMode?: AuthMode; shareToken?: string; metricCode?: string } {
   if (pathname.startsWith("/share/")) {
     return { view: "doctor", shareToken: decodeURIComponent(pathname.slice("/share/".length)) };
+  }
+  if (pathname.startsWith("/trends/")) {
+    return { view: "metric", metricCode: decodeURIComponent(pathname.slice("/trends/".length)) };
   }
   switch (pathname) {
     case "/": return { view: "landing" };
@@ -99,7 +103,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const initial = parsePath(typeof window !== "undefined" ? window.location.pathname : "/");
   const [patientId, setPatientId] = useState<Id<"patients"> | null>(null);
   const [view, setView] = useState<View>(initial.view);
-  const [metricCode, setMetricCode] = useState<string | null>(null);
+  const [metricCode, setMetricCode] = useState<string | null>(initial.metricCode ?? null);
   const [evidence, setEvidence] = useState<Evidence>(null);
   const [shareToken, setShareToken] = useState<string | null>(initial.shareToken ?? null);
   const [authMode, setAuthMode] = useState<AuthMode>(initial.authMode ?? "signUp");
@@ -125,13 +129,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("th_dockExpanded", dockExpanded ? "1" : "0");
   }, [dockExpanded]);
 
-  // Keep the URL in sync with the current view (so /dashboard, /timeline, … are real).
+  // Keep the URL in sync with the current view (so /dashboard, /trends/LDL, … are real).
   useEffect(() => {
-    const path = pathFor(view, authMode, shareToken);
+    const path = pathFor(view, authMode, shareToken, metricCode);
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
     }
-  }, [view, authMode, shareToken]);
+  }, [view, authMode, shareToken, metricCode]);
 
   // Browser back/forward re-drives the view from the URL.
   useEffect(() => {
@@ -140,6 +144,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setView(p.view);
       setAuthMode(p.authMode ?? "signUp");
       setShareToken(p.shareToken ?? null);
+      if (p.metricCode) setMetricCode(p.metricCode);
     }
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);

@@ -4,7 +4,7 @@ import { useStore } from "../lib/store";
 import { fmtDate } from "../lib/format";
 
 export default function Conflicts() {
-  const { patientId, showEvidence } = useStore();
+  const { patientId, showEvidence, go } = useStore();
   const conflicts = useQuery(api.health.listConflicts, patientId ? { patientId } : "skip");
   const meds = useQuery(api.health.listMedications, patientId ? { patientId } : "skip");
   const missing = useQuery(api.health.listMissing, patientId ? { patientId } : "skip");
@@ -93,13 +93,9 @@ export default function Conflicts() {
                   </div>
                   <button className="btn-ghost text-xs" onClick={() => showEvidence({ documentId: mr.referencedInDocumentId })}>Reference</button>
                 </div>
-                <div className="mt-3 rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink-500 opacity-70">
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="font-medium text-ink-700">How to obtain this record</span>
-                    <span className="tag">Coming soon</span>
-                  </div>
-                  Firecrawl will look up {mr.org}’s records-request process and TraceHealth will prepare
-                  the request for you.
+                <div className="mt-3 rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink-500">
+                  Referenced in your records but not yet imported. Ask {mr.org} for a copy, then add it on{" "}
+                  <button className="font-medium text-accent" onClick={() => go("import")}>Add data</button>.
                 </div>
               </div>
             ))}
