@@ -94,6 +94,7 @@ export function toolSchemas(ctx: ToolContext) {
     fn("list_conditions", "List diagnosed conditions with status and date."),
     fn("list_allergies", "List recorded allergies and reactions."),
     fn("search_records", "Search the whole record (labs, meds, conditions, visits) by keyword.", { query: { type: "string" } }, ["query"]),
+    fn("reference_lookup", "Look up what a lab, medication, or condition MEANS from trusted public medical sources (MedlinePlus, FDA, CDC, Mayo Clinic) and cite the page URL. Use for 'what is X' / 'what does X mean' education questions — general info, not advice.", { topic: { type: "string", description: "the term to explain, e.g. 'LDL cholesterol' or 'atorvastatin'" } }, ["topic"]),
     fn("screening_status", "Which tracked labs/vitals are overdue for a recheck vs typical guideline cadence."),
     fn("find_open_loops", "Abnormal results that were never rechecked, or monitoring that's overdue for a condition — dropped threads."),
     fn("recent_activity", "What's new in the record recently: labs and visits within the last N months (default 6).", { months: { type: "number" } }),

@@ -218,6 +218,8 @@ export const answer = internalAction({
     const allDocs = new Set<string>(s.docs.map((d: any) => String(d._id)));
     const usedDocs = new Set<string>();
     const usedCodes = new Set<string>();
+    const webSources: { title: string; url: string }[] = [];
+    const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return "source"; } };
 
     // A compact overview so simple questions need no tool call; tools add depth.
     const overview = {
@@ -291,9 +293,24 @@ export const answer = internalAction({
         for (const tc of calls) {
           let a: any = {};
           try { a = JSON.parse(tc.function?.arguments || "{}"); } catch { a = {}; }
-          const r = executeTool(tc.function?.name ?? "", a, tctx);
-          r.docs.forEach((d) => usedDocs.add(String(d)));
-          r.codes.forEach((c) => usedCodes.add(String(c)));
+          const name = tc.function?.name ?? "";
+          let r: { result: any; label: string; detail?: string };
+          if (name === "reference_lookup") {
+            // Network tool: Firecrawl over trusted public medical sources.
+            const topic = String(a.topic ?? "").slice(0, 120);
+            const ref: any = await ctx.runAction(internal.firecrawl.referenceLookup, { topic });
+            if (ref && ref.source) {
+              webSources.push({ title: ref.source.title, url: ref.source.url });
+              r = { result: { topic, summary: ref.summary, source: ref.source, note: "General info from a trusted public source — not medical advice." }, label: `Looked up “${topic}” from a trusted source`, detail: hostOf(ref.source.url) };
+            } else {
+              r = { result: { topic, unavailable: ref?.error ? `reference lookup error: ${ref.error}` : "Reference lookup unavailable (Firecrawl not configured)." }, label: `Looked up “${topic}”`, detail: "no source" };
+            }
+          } else {
+            const t = executeTool(name, a, tctx);
+            t.docs.forEach((d) => usedDocs.add(String(d)));
+            t.codes.forEach((c) => usedCodes.add(String(c)));
+            r = { result: t.result, label: t.label, detail: t.detail };
+          }
           steps.push({ title: r.label, detail: r.detail, status: "done" });
           await flush();
           messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(r.result).slice(0, 4000) });
@@ -335,7 +352,10 @@ export const answer = internalAction({
       return;
     }
 
-    await ctx.runMutation(internal.assistant.finalize, { messageId, content, citations, charts, followups, error: false });
+    // Dedupe web sources by URL.
+    const seenUrl = new Set<string>();
+    const webOut = webSources.filter((w) => (seenUrl.has(w.url) ? false : (seenUrl.add(w.url), true))).slice(0, 4);
+    await ctx.runMutation(internal.assistant.finalize, { messageId, content, citations, charts, followups, webSources: webOut, error: false });
   },
 });
 
@@ -347,6 +367,7 @@ export const finalize = internalMutation({
     citations: v.array(v.object({ documentId: v.id("documents"), label: v.string(), page: v.optional(v.number()) })),
     charts: v.optional(v.array(v.string())),
     followups: v.optional(v.array(v.string())),
+    webSources: v.optional(v.array(v.object({ title: v.string(), url: v.string() }))),
   },
   handler: async (ctx, a) => {
     await ctx.db.patch(a.messageId, {
@@ -356,6 +377,7 @@ export const finalize = internalMutation({
       citations: a.citations,
       charts: a.charts ?? [],
       followups: a.followups ?? [],
+      webSources: a.webSources ?? [],
     });
   },
 });

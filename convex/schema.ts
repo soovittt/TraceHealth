@@ -226,6 +226,7 @@ export default defineSchema({
     error: v.optional(v.boolean()),
     charts: v.optional(v.array(v.string())), // metric codes to render inline (data is fetched live)
     followups: v.optional(v.array(v.string())), // suggested follow-up questions
+    webSources: v.optional(v.array(v.object({ title: v.string(), url: v.string() }))), // cited public reference pages (Firecrawl)
 
     // Citations point every claim back to a source document.
     citations: v.optional(
