@@ -10,11 +10,14 @@ const TONE: Record<string, { dot: string; text: string }> = {
 
 // #1 Needs Attention Feed + #63 completeness — the app reads the whole record
 // and hands you the short list that matters. Deterministic, grounded, cited.
-export default function SignalsPanel() {
-  const { patientId, openMetric, showEvidence } = useStore();
+export default function SignalsPanel({ limit }: { limit?: number }) {
+  const { patientId, openMetric, showEvidence, askAI } = useStore();
   const signals = useQuery(api.signals.getSignals, patientId ? { patientId } : "skip");
   const health = useQuery(api.signals.dataHealth, patientId ? { patientId } : "skip");
   if (signals === undefined) return null;
+
+  const shown = limit ? signals.slice(0, limit) : signals;
+  const moreCount = signals.length - shown.length;
 
   return (
     <section className="card overflow-hidden">
@@ -43,15 +46,15 @@ export default function SignalsPanel() {
         </div>
       ) : (
         <div className="divide-y divide-line-soft">
-          {signals.map((s: any) => {
+          {shown.map((s: any) => {
             const tone = TONE[s.severity] ?? TONE.info;
             const act = () => (s.code ? openMetric(s.code) : s.documentId ? showEvidence({ documentId: s.documentId, page: s.page }) : undefined);
             return (
-              <button key={s.id} onClick={act} className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-canvas">
+              <button key={s.id} onClick={act} className="flex w-full items-start gap-3 px-4 py-2 text-left transition-colors hover:bg-canvas">
                 <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-medium text-ink-900">{s.title}</span>
-                  <span className="mt-0.5 block text-xs text-ink-500">{s.detail}</span>
+                  <span className="mt-0.5 block truncate text-xs text-ink-500">{s.detail}</span>
                 </span>
                 {s.documentId && (
                   <svg viewBox="0 0 12 12" className="mt-1 h-3 w-3 shrink-0 text-ink-300" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -61,6 +64,14 @@ export default function SignalsPanel() {
               </button>
             );
           })}
+          {moreCount > 0 && (
+            <button
+              onClick={() => askAI("Walk me through everything I should be paying attention to across my whole record, most important first.")}
+              className="flex w-full items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-accent hover:bg-canvas"
+            >
+              +{moreCount} more · ask the AI to walk through them →
+            </button>
+          )}
         </div>
       )}
     </section>

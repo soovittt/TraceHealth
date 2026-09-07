@@ -62,114 +62,91 @@ export default function HealthHome() {
     .sort((a: any, b: any) => (b.diagnosedDate ?? 0) - (a.diagnosedDate ?? 0))
     .filter((c: any) => (seen.has(c.normalizedName) ? false : (seen.add(c.normalizedName), true)));
 
+  const topMetrics = (() => {
+    const primary = metrics.filter((m: any) => m.primary);
+    return (primary.length ? primary : metrics).slice(0, 5);
+  })();
+
   return (
-    <div className="mx-auto max-w-5xl animate-fade-in">
-      {/* header */}
-      <div className="flex items-start justify-between">
+    <div className="mx-auto flex h-full max-w-6xl flex-col animate-fade-in">
+      {/* compact header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink-900">{patient.name}</h1>
-          <div className="mt-1 flex items-center gap-2 text-xs text-ink-500">
-            <span>{patient.age} yr</span>
-            <Sep />
-            <span className="mono">{patient.recordsFrom}</span>
-            <Sep />
-            <span>{patient.orgCount} organizations</span>
+          <h1 className="text-xl font-semibold text-ink-900">{patient.name}</h1>
+          <div className="mt-0.5 flex items-center gap-2 text-2xs text-ink-500">
+            <span>{patient.age} yr</span><Sep /><span className="mono">{patient.recordsFrom}</span><Sep /><span>{patient.orgCount} orgs</span>
           </div>
         </div>
         {openConflicts.length > 0 && (
           <button onClick={() => go("conflicts")} className="flex items-center gap-2 rounded-md border border-warn-line bg-warn-soft px-2.5 py-1.5 text-xs font-medium text-warn hover:brightness-[0.98]">
             <span className="h-1.5 w-1.5 rounded-full bg-warn" />
-            {openConflicts.length} records to review
+            {openConflicts.length} to review
           </button>
         )}
       </div>
 
-      <div className="mt-5">
+      <div className="mt-3.5">
         <AskBar />
       </div>
 
-      {/* the app reads your record and tells you what to look at */}
-      <div className="mt-5">
-        <SignalsPanel />
-      </div>
+      {/* two-column cockpit — summaries that link out to full pages */}
+      <div className="mt-3.5 grid min-h-0 flex-1 gap-3.5 lg:grid-cols-[1.5fr_1fr]">
+        {/* LEFT */}
+        <div className="flex min-h-0 flex-col gap-3.5">
+          <SignalsPanel limit={4} />
 
-      {/* metric strip */}
-      <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
-        {(() => {
-          const primary = metrics.filter((m: any) => m.primary);
-          return (primary.length ? primary : metrics).slice(0, 8);
-        })().map((m: any) => {
-          const rising = m.last > m.first;
-          const bad = (m.direction === "high_bad" && rising) || (m.direction === "low_bad" && !rising);
-          return (
-            <button key={m.code} onClick={() => openMetric(m.code)} className="group bg-surface p-3.5 text-left transition-colors hover:bg-canvas">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-ink-600">{m.label}</span>
-                {m.direction !== "neutral" && (
-                  <span className={`mono text-2xs ${bad ? "text-bad" : "text-good"}`}>
-                    {rising ? "↑" : "↓"}{Math.abs(m.changePct)}%
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 mono text-2xl font-semibold text-ink-900">
-                {fmtNum(m.last)}
-                <span className="ml-1 text-2xs font-normal text-ink-400">{m.unit}</span>
-              </div>
-              <div className="mt-2">
-                <SparkFromMetric code={m.code} />
-              </div>
-              <div className="mt-1.5 mono text-2xs text-ink-400">
-                {fmtNum(m.first)}→{fmtNum(m.last)} · {year(m.firstDate)}–{year(m.lastDate)}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        {/* recent activity table */}
-        <section>
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="eyebrow">Recent activity</h2>
-            <button className="text-xs font-medium text-ink-500 hover:text-ink-900" onClick={() => go("timeline")}>
-              View timeline →
-            </button>
-          </div>
-          <div className="card overflow-hidden">
-            {recent.map((it: any, i: number) => (
-              <button
-                key={it.id}
-                onClick={() => it.documentId && showEvidence({ documentId: it.documentId, page: it.page })}
-                className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}
-              >
-                <span className="mono w-[68px] shrink-0 text-2xs text-ink-400">{fmtDate(it.date)}</span>
-                <TypeTag type={it.type} />
-                <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{it.title}</span>
-                {it.subtitle && <span className="hidden truncate text-xs text-ink-400 sm:block">{it.subtitle}</span>}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* meds + conditions */}
-        <div className="space-y-5">
-          <section>
-            <h2 className="eyebrow mb-2">Active medications</h2>
-            <div className="card">
-              {activeMeds.map((m: any, i: number) => (
-                <button key={m._id} onClick={() => showEvidence({ documentId: m.documentId, page: m.page })} className={`flex w-full items-center justify-between px-3.5 py-2 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}>
-                  <span className="text-sm text-ink-800">{m.name}</span>
-                  <span className="mono text-xs text-ink-500">{m.dose ? `${m.dose} ${m.doseUnit}` : "—"}</span>
+          <section className="flex min-h-0 flex-1 flex-col">
+            <SectionHead title="Recent activity" action="Timeline →" onClick={() => go("timeline")} />
+            <div className="card flex-1 overflow-auto">
+              {recent.slice(0, 6).map((it: any, i: number) => (
+                <button
+                  key={it.id}
+                  onClick={() => it.documentId && showEvidence({ documentId: it.documentId, page: it.page })}
+                  className={`flex w-full items-center gap-3 px-3.5 py-2 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}
+                >
+                  <span className="mono w-[64px] shrink-0 text-2xs text-ink-400">{fmtDate(it.date)}</span>
+                  <TypeTag type={it.type} />
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{it.title}</span>
                 </button>
               ))}
             </div>
           </section>
+        </div>
+
+        {/* RIGHT */}
+        <div className="flex min-h-0 flex-col gap-3.5">
           <section>
-            <h2 className="eyebrow mb-2">Active conditions</h2>
+            <SectionHead title="Key metrics" action="Trends →" onClick={() => go("metric")} />
             <div className="card">
-              {activeConds.map((c: any, i: number) => (
-                <button key={c._id} onClick={() => showEvidence({ documentId: c.documentId, page: c.page })} className={`flex w-full items-center justify-between px-3.5 py-2 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}>
-                  <span className="text-sm text-ink-800">{c.name}</span>
+              {topMetrics.map((m: any, i: number) => {
+                const rising = m.last > m.first;
+                const bad = (m.direction === "high_bad" && rising) || (m.direction === "low_bad" && !rising);
+                return (
+                  <button key={m.code} onClick={() => openMetric(m.code)} className={`flex w-full items-center gap-2 px-3.5 py-1.5 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}>
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink-700">{m.label}</span>
+                    <span className="hidden h-5 w-14 sm:block"><SparkFromMetric code={m.code} /></span>
+                    <span className="mono w-16 shrink-0 text-right text-sm font-medium text-ink-900">{fmtNum(m.last)}<span className="ml-0.5 text-2xs font-normal text-ink-400">{m.unit}</span></span>
+                    {m.direction !== "neutral" && (
+                      <span className={`mono w-11 shrink-0 text-right text-2xs ${bad ? "text-bad" : "text-good"}`}>{rising ? "↑" : "↓"}{Math.abs(m.changePct)}%</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="flex min-h-0 flex-1 flex-col">
+            <SectionHead title="Active meds & conditions" action="Timeline →" onClick={() => go("timeline")} />
+            <div className="card flex-1 overflow-auto">
+              {activeMeds.slice(0, 4).map((m: any, i: number) => (
+                <button key={m._id} onClick={() => showEvidence({ documentId: m.documentId, page: m.page })} className={`flex w-full items-center justify-between px-3.5 py-1.5 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}>
+                  <span className="flex items-center gap-2 text-sm text-ink-800"><span className="tag shrink-0">Rx</span>{m.name}</span>
+                  <span className="mono text-2xs text-ink-500">{m.dose ? `${m.dose} ${m.doseUnit}` : ""}</span>
+                </button>
+              ))}
+              {activeConds.slice(0, 4).map((c: any, i: number) => (
+                <button key={c._id} onClick={() => showEvidence({ documentId: c.documentId, page: c.page })} className="flex w-full items-center justify-between border-t border-line-soft px-3.5 py-1.5 text-left hover:bg-canvas">
+                  <span className="flex items-center gap-2 text-sm text-ink-800"><span className="tag shrink-0">Dx</span>{c.name}</span>
                   <span className="mono text-2xs text-ink-400">{c.diagnosedDate ? year(c.diagnosedDate) : ""}</span>
                 </button>
               ))}
@@ -177,6 +154,15 @@ export default function HealthHome() {
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SectionHead({ title, action, onClick }: { title: string; action: string; onClick: () => void }) {
+  return (
+    <div className="mb-1.5 flex items-center justify-between">
+      <h2 className="eyebrow">{title}</h2>
+      <button className="text-xs font-medium text-ink-500 hover:text-ink-900" onClick={onClick}>{action}</button>
     </div>
   );
 }
