@@ -13,6 +13,8 @@ export default function ImportScreen() {
   const ensurePatient = useMutation(api.patients.ensureMyPatient);
   const extract = useAction(api.ingest.extractAndImport);
   const importBundle = useMutation(api.ingest.importBundle);
+  const generateUploadUrl = useMutation(api.ingest.generateUploadUrl);
+  const extractImage = useAction(api.ingest.extractFromImage);
 
   const [mode, setMode] = useState<Mode>("extract");
   const [busy, setBusy] = useState(false);
@@ -40,6 +42,26 @@ export default function ImportScreen() {
       setText("");
     } catch (e: any) {
       setResult({ ok: false, msg: e?.message ?? "Extraction failed." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // --- #52 Snap-a-Lab: photo/scan → vision extraction ---
+  async function snapLab(files: FileList | null) {
+    if (!files?.length) return;
+    const file = files[0];
+    setBusy(true);
+    setResult(null);
+    try {
+      const url = await generateUploadUrl();
+      const up = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const { storageId } = await up.json();
+      const c = await extractImage({ patientId: await pid(), filename: file.name, storageId });
+      const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
+      setResult({ ok: true, msg: `Read ${total} records from the image (${c.observations} labs · ${c.medications} meds · ${c.conditions} conditions · ${c.allergies} allergies).` });
+    } catch (e: any) {
+      setResult({ ok: false, msg: e?.message ?? "Couldn't read the image." });
     } finally {
       setBusy(false);
     }
@@ -108,6 +130,18 @@ export default function ImportScreen() {
                 {busy ? "Extracting…" : "Extract with AI"}
               </button>
             </div>
+
+            <div className="my-4 flex items-center gap-3 text-2xs text-ink-400">
+              <span className="h-px flex-1 bg-line" /> or snap a photo <span className="h-px flex-1 bg-line" />
+            </div>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-6 py-5 text-center transition-colors hover:border-accent-line hover:bg-canvas">
+              <input type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => snapLab(e.target.files)} />
+              <svg viewBox="0 0 16 16" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 5.5h2l1-1.5h5l1 1.5h2v7h-11zM8 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+              </svg>
+              <span className="text-sm font-medium text-ink-800">{busy ? "Reading…" : "Photograph a lab report or med list"}</span>
+              <span className="text-2xs text-ink-400">GPT-4o vision reads the values</span>
+            </label>
           </section>
         )}
 

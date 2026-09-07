@@ -1,5 +1,5 @@
 import { query, mutation, internalQuery, internalAction, internalMutation } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { canRead, assertWrite } from "./authz";
@@ -289,9 +289,14 @@ export const answer = internalAction({
       .filter((c: any) => (seenC.has(c.normalizedName) ? false : (seenC.add(c.normalizedName), true)))
       .map((c: any) => ({ name: c.name, status: c.status, diagnosed: iso(c.diagnosedDate), documentId: c.documentId }));
 
+    // Fold the deterministic "needs attention" signals into the AI's context so
+    // "what should I watch?" is answered from the same engine the dashboard uses.
+    const signals: any[] = await ctx.runQuery(api.signals.getSignals, { patientId });
+
     const record = {
       patient: s.patient ? { name: s.patient.name, age: s.patient.age, recordsFrom: s.patient.recordsFrom } : null,
       sources: s.docs.map((d: any) => ({ documentId: d._id, org: d.org, date: iso(d.receivedAt) })),
+      needsAttention: signals.slice(0, 8).map((g: any) => ({ severity: g.severity, title: g.title, detail: g.detail, documentId: g.documentId })),
       metricTrends: metrics,
       medications: s.meds.map((m: any) => ({ name: m.name, dose: m.dose ? `${m.dose} ${m.doseUnit}` : null, status: m.status, started: iso(m.startDate), documentId: m.documentId })),
       conditions,
@@ -316,12 +321,15 @@ export const answer = internalAction({
       "(6) Do NOT write a 'Citations'/'Sources' section, footnotes, or any URLs/links inside the answer text — the app renders citations separately from the citations array. Never invent links. " +
       "(7) When the answer is about one or more measurements or their trends, list the relevant metric codes (the `metric` field from metricTrends) in `charts` (max 3) — the app draws the real chart from the data, so never put numbers in the answer that contradict the record. " +
       "(8) Also return `steps`: 2–4 SHORT, concrete phrases describing the analysis you performed over the records — what you looked at and compared (e.g. 'Isolated 8 LDL readings from 2019–2026', 'Compared latest 96 mg/dL against the 130 target', 'Checked for a statin start in that window'). These are shown to the user as a reasoning trace, so keep them factual and health-framed — NOT your internal monologue, NOT restatements of the question. " +
-      'Return STRICT JSON: {"answer": string (concise markdown, no links, no citations section), "citations": [{"documentId": string}], "charts": [string], "steps": [string]}. ' +
+      "(9) The `needsAttention` array is the app's own flagged signals (out-of-range labs, worsening trends, overdue rechecks) — use it for 'what should I watch/pay attention to' questions. " +
+      "(10) Also return `followups`: 2-3 SHORT, specific next questions this person might naturally ask given your answer and their record (phrased as the user would ask them). " +
+      'Return STRICT JSON: {"answer": string (concise markdown, no links, no citations section), "citations": [{"documentId": string}], "charts": [string], "steps": [string], "followups": [string]}. ' +
       "Only use documentId values and metric codes that appear in the provided data.";
 
     let content = "";
     let citations: { documentId: Id<"documents">; label: string }[] = [];
     let charts: string[] = [];
+    let followups: string[] = [];
     try {
       await begin(
         "Reasoning over the data",
@@ -375,6 +383,11 @@ export const answer = internalAction({
         .filter((c: string, i: number, arr: string[]) => arr.indexOf(c) === i)
         .slice(0, 3);
 
+      followups = (Array.isArray(parsed.followups) ? parsed.followups : [])
+        .map((f: any) => String(f).trim())
+        .filter(Boolean)
+        .slice(0, 3);
+
       // Fold the model's own articulated analysis into the trace as done steps.
       await done();
       const modelSteps = (Array.isArray(parsed.steps) ? parsed.steps : [])
@@ -393,7 +406,7 @@ export const answer = internalAction({
       return;
     }
 
-    await ctx.runMutation(internal.assistant.finalize, { messageId, content, citations, charts, error: false });
+    await ctx.runMutation(internal.assistant.finalize, { messageId, content, citations, charts, followups, error: false });
   },
 });
 
@@ -404,6 +417,7 @@ export const finalize = internalMutation({
     error: v.boolean(),
     citations: v.array(v.object({ documentId: v.id("documents"), label: v.string(), page: v.optional(v.number()) })),
     charts: v.optional(v.array(v.string())),
+    followups: v.optional(v.array(v.string())),
   },
   handler: async (ctx, a) => {
     await ctx.db.patch(a.messageId, {
@@ -412,6 +426,7 @@ export const finalize = internalMutation({
       error: a.error,
       citations: a.citations,
       charts: a.charts ?? [],
+      followups: a.followups ?? [],
     });
   },
 });

@@ -1,19 +1,38 @@
-import { useQuery, useConvex } from "convex/react";
+import { useState, useEffect } from "react";
+import { useQuery, useConvex, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { TrendChart } from "./charts";
+import { Markdown } from "./markdown";
 import { fmtMonthYear, fmtNum } from "../lib/format";
 import { downloadText } from "../lib/download";
 
 export default function MetricGraph() {
   const { patientId, metricCode, openMetric, showEvidence } = useStore();
   const convex = useConvex();
+  const explainMetric = useAction(api.insights.explainMetric);
   const code = metricCode ?? "LDL";
+
+  const [exp, setExp] = useState<{ explanation: string; questions: string[]; documentId?: string | null } | null>(null);
+  const [expLoading, setExpLoading] = useState(false);
+  useEffect(() => { setExp(null); }, [code]);
 
   async function exportCsv() {
     if (!patientId) return;
     const res = await convex.query(api.export.exportMetricCsv, { patientId, code });
     if (res) downloadText(res.filename, res.mime, res.content);
+  }
+
+  async function runExplain() {
+    if (!patientId) return;
+    setExpLoading(true);
+    setExp(null);
+    try {
+      const r = await explainMetric({ patientId, code });
+      if (r) setExp(r);
+    } finally {
+      setExpLoading(false);
+    }
   }
   const metric = useQuery(api.health.getMetric, patientId ? { patientId, code } : "skip");
   const metrics = useQuery(api.health.listMetrics, patientId ? { patientId } : "skip");
@@ -62,6 +81,12 @@ export default function MetricGraph() {
           <Stat label="Readings" value={String(metric.series.length)} />
           <Stat label="Peak" value={fmtNum(metric.peak)} />
           <Stat label="Latest" value={fmtNum(metric.last)} />
+          <button onClick={runExplain} disabled={expLoading} title="Explain this in plain language" className="btn-secondary gap-1.5 px-2.5 py-1 text-xs">
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor">
+              <path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" />
+            </svg>
+            {expLoading ? "Explaining…" : "Explain this"}
+          </button>
           <button
             onClick={exportCsv}
             title="Download this metric as CSV"
@@ -89,6 +114,35 @@ export default function MetricGraph() {
         />
         <p className="mt-1 text-center text-2xs text-ink-400">Select any reading to trace it to the source record.</p>
       </div>
+
+      {/* #8 Explain This Result — plain-language, cited, non-diagnostic */}
+      {exp && (
+        <div className="mt-4 rounded-lg border border-accent-line bg-accent-soft/40 p-4 animate-fade-in">
+          <div className="flex items-center gap-1.5">
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
+            <span className="eyebrow">In plain language</span>
+          </div>
+          <div className="mt-2 text-sm text-ink-800">
+            <Markdown text={exp.explanation} />
+          </div>
+          {exp.questions?.length > 0 && (
+            <div className="mt-3 border-t border-line-soft pt-2.5">
+              <div className="text-2xs font-medium uppercase tracking-wide text-ink-400">Questions to ask your doctor</div>
+              <ul className="mt-1.5 space-y-1">
+                {exp.questions.map((q, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-ink-700"><span className="text-accent">·</span>{q}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="mt-2.5 flex items-center justify-between">
+            <span className="text-2xs text-ink-400">Grounded in your record · not medical advice</span>
+            {exp.documentId && (
+              <button onClick={() => showEvidence({ documentId: exp.documentId as any })} className="text-2xs font-medium text-accent hover:underline">View source</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* insight — restrained, bordered, accent rule */}
       {metric.insight && (

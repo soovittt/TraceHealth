@@ -1,7 +1,9 @@
-import { useQuery, useConvexAuth } from "convex/react";
+import { useState } from "react";
+import { useQuery, useAction, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import EvidencePanel from "./EvidencePanel";
+import { Markdown } from "./markdown";
 import { Wordmark } from "./brand";
 import { fmtDate, fmtNum } from "../lib/format";
 
@@ -14,6 +16,23 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
     api.health.doctorSnapshot,
     resolvedId ? { patientId: resolvedId, shareToken: shareToken ?? undefined } : "skip",
   );
+  const signals = useQuery(
+    api.signals.getSignals,
+    resolvedId ? { patientId: resolvedId, shareToken: shareToken ?? undefined } : "skip",
+  );
+  const genBrief = useAction(api.insights.clinicalBrief);
+  const [brief, setBrief] = useState<{ markdown: string; citations: any[] } | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  async function makeBrief() {
+    if (!resolvedId) return;
+    setBriefLoading(true);
+    try {
+      const r = await genBrief({ patientId: resolvedId, shareToken: shareToken ?? undefined });
+      if (r) setBrief(r);
+    } finally {
+      setBriefLoading(false);
+    }
+  }
 
   if (shareToken && share === null) return <Centered>This share link is invalid.</Centered>;
   if (shareToken && share?.expired) return <Centered>This share link has expired.</Centered>;
@@ -62,6 +81,47 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
               {snap.patient.age} yr · {snap.patient.recordsFrom} · {snap.orgs.length} organizations
             </div>
           </div>
+        </div>
+
+        {/* #47 Point-of-care safety banner — allergies + high-severity flags, front and center */}
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-md border border-bad/30 bg-bad-soft px-3.5 py-2.5">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-bad-ink">
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2.5 14 13H2zM8 6.5v3.5M8 11.5h.01" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            {snap.allergies.length ? `Allergies: ${snap.allergies.map((a: any) => a.substance).join(", ")}` : "No known allergies recorded"}
+          </span>
+          {(signals ?? []).filter((s: any) => s.severity === "high").map((s: any) => (
+            <span key={s.id} className="text-xs text-bad-ink">· {s.title}</span>
+          ))}
+        </div>
+
+        {/* #48 AI clinical brief (SBAR) — one click, cited, non-diagnostic */}
+        <div className="mt-3 card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
+              <span className="eyebrow">AI clinical brief · SBAR</span>
+            </div>
+            {!brief && (
+              <button className="btn-secondary no-print px-2.5 py-1 text-xs" onClick={makeBrief} disabled={briefLoading}>
+                {briefLoading ? "Generating…" : "Generate brief"}
+              </button>
+            )}
+          </div>
+          {brief ? (
+            <div className="mt-2.5 text-sm text-ink-800">
+              <Markdown text={brief.markdown} />
+              {brief.citations?.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-line-soft pt-2.5">
+                  {brief.citations.map((c: any, i: number) => (
+                    <button key={i} onClick={() => showEvidence({ documentId: c.documentId })} className="rounded border border-line bg-canvas px-1.5 py-0.5 text-2xs text-ink-500 hover:text-ink-800">Source {i + 1}</button>
+                  ))}
+                </div>
+              )}
+              <div className="mt-2 text-2xs text-ink-400">AI-generated from the record · for clinician triage · not a diagnosis</div>
+            </div>
+          ) : (
+            <p className="mt-1.5 text-xs text-ink-400">A 3-sentence situation → background → assessment → review summary, generated from this record.</p>
+          )}
         </div>
 
         {snap.conflicts.length > 0 && (
