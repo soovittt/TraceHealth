@@ -235,6 +235,21 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
                     )}
                   </div>
                 )}
+                {/* #34 grounded follow-up chips */}
+                {!m.pending && m.followups && m.followups.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {m.followups.map((f: string, i: number) => (
+                      <button
+                        key={i}
+                        onClick={() => send(f)}
+                        disabled={busy}
+                        className="rounded-full border border-line bg-surface px-2.5 py-1 text-2xs text-ink-600 transition-colors hover:border-accent-line hover:text-ink-900 disabled:opacity-50"
+                      >
+                        {f} →
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ),
