@@ -526,6 +526,31 @@ export const getShare = query({
 
 // ---- search --------------------------------------------------------------
 
+// Levenshtein edit distance — used for typo-tolerant search (e.g. a user types
+// "simvastatin" but the record has the variant "Simvistatin").
+function editDistance(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (Math.abs(m - n) > 3) return 99;
+  const d = new Array(n + 1);
+  for (let j = 0; j <= n; j++) d[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = d[0];
+    d[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = d[j];
+      d[j] = a[i - 1] === b[j - 1] ? prev : Math.min(prev, d[j], d[j - 1]) + 1;
+      prev = tmp;
+    }
+  }
+  return d[n];
+}
+// True if any word in `text` is a near-match (small edit distance) of `term`.
+function fuzzyHit(text: string, term: string): boolean {
+  if (term.length < 4) return false;
+  const thresh = term.length <= 6 ? 1 : 2;
+  return text.split(/[^a-z0-9]+/).some((w) => w.length >= 4 && editDistance(w, term) <= thresh);
+}
+
 // A short highlighted window around the matched term in a document excerpt.
 function snippetOf(text: string | undefined, term: string): string {
   if (!text) return "";
@@ -590,7 +615,8 @@ export const search = query({
     // a word ("statin" in "Atorvastatin") won't match. If no STRUCTURED record
     // hit (documents aside), fall back to a per-patient substring scan.
     if (medications.length + conditions.length + encounters.length + missing.length === 0) {
-      const hit = (s?: string) => (s ?? "").toLowerCase().includes(lc);
+      // Substring OR typo-tolerant (fuzzy) match.
+      const hit = (s?: string) => { const t = (s ?? "").toLowerCase(); return t.includes(lc) || fuzzyHit(t, lc); };
       const [meds, conds, encs, miss] = await Promise.all([
         byPatient(ctx, "medications", patientId),
         byPatient(ctx, "conditions", patientId),
