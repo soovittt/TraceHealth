@@ -257,6 +257,7 @@ export const answer = internalAction({
       "(3) For each thing you raise, explain in plain words what it MEANS and why it matters to this person (the 'so what') — not just the number and 'above reference'. " +
       "(4) Where useful, note what they might do or ask their doctor — never diagnose or prescribe. " +
       "(5) Warm, concrete, and concise: a short intro then a few tight bullets, not a long catalog. Numbers are supporting evidence, not the point. " +
+      "(6) FORMAT CLEANLY for a chat bubble: at most one short intro sentence, then a tight bullet list where each bullet starts with a **bold label** followed by a plain-language point. No section headings, no tables, no nested sub-bullets, and no more than ~5 bullets. Keep sentences short. " +
       "Do NOT include a citations/sources section or any links in the answer text. Non-diagnostic. " +
       'Return STRICT JSON: {"answer": string (markdown), "charts": [up to 3 relevant metric codes], "citations": [{"documentId": string}], "followups": [2-3 short next questions the user might ask]}. ' +
       "Only use documentId values and metric codes that appeared in the overview or tool results.";
