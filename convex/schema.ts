@@ -225,6 +225,8 @@ export default defineSchema({
     ),
     error: v.optional(v.boolean()),
     charts: v.optional(v.array(v.string())), // metric codes to render inline (data is fetched live)
+    followups: v.optional(v.array(v.string())), // suggested follow-up questions
+
     // Citations point every claim back to a source document.
     citations: v.optional(
       v.array(
