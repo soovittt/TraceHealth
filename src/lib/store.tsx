@@ -12,6 +12,7 @@ export type View =
   | "conflicts"
   | "integrations"
   | "reports"
+  | "signals"
   | "ask"
   | "chat"
   | "doctor";
@@ -62,6 +63,7 @@ const VIEW_TO_PATH: Record<View, string> = {
   conflicts: "/review",
   integrations: "/integrations",
   reports: "/reports",
+  signals: "/attention",
   ask: "/dashboard",
   chat: "/chat",
   doctor: "/doctor",
@@ -93,6 +95,7 @@ function parsePath(pathname: string): { view: View; authMode?: AuthMode; shareTo
     case "/review": return { view: "conflicts" };
     case "/integrations": return { view: "integrations" };
     case "/reports": return { view: "reports" };
+    case "/attention": return { view: "signals" };
     case "/chat": return { view: "chat" };
     case "/doctor": return { view: "doctor" };
     default: return { view: "landing" };

@@ -11,7 +11,7 @@ const TONE: Record<string, { dot: string; text: string }> = {
 // #1 Needs Attention Feed + #63 completeness — the app reads the whole record
 // and hands you the short list that matters. Deterministic, grounded, cited.
 export default function SignalsPanel({ limit }: { limit?: number }) {
-  const { patientId, openMetric, showEvidence, askAI } = useStore();
+  const { patientId, openMetric, showEvidence, go } = useStore();
   const signals = useQuery(api.signals.getSignals, patientId ? { patientId } : "skip");
   const health = useQuery(api.signals.dataHealth, patientId ? { patientId } : "skip");
   if (signals === undefined) return null;
@@ -29,12 +29,17 @@ export default function SignalsPanel({ limit }: { limit?: number }) {
           <h2 className="text-sm font-semibold text-ink-900">Needs your attention</h2>
           {signals.length > 0 && <span className="mono text-2xs text-ink-400">{signals.length}</span>}
         </div>
-        {health && (
-          <span className="flex items-center gap-1.5 text-2xs text-ink-400" title={health.gaps.join(" · ") || "Looks complete"}>
-            <span className={`h-1.5 w-1.5 rounded-full ${health.score >= 75 ? "bg-good" : health.score >= 50 ? "bg-warn" : "bg-bad"}`} />
-            Record {health.score}% complete
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {health && (
+            <span className="hidden items-center gap-1.5 text-2xs text-ink-400 sm:flex" title={health.gaps.join(" · ") || "Looks complete"}>
+              <span className={`h-1.5 w-1.5 rounded-full ${health.score >= 75 ? "bg-good" : health.score >= 50 ? "bg-warn" : "bg-bad"}`} />
+              Record {health.score}% complete
+            </span>
+          )}
+          {signals.length > 0 && (
+            <button className="text-xs font-medium text-ink-500 hover:text-ink-900" onClick={() => go("signals")}>See all →</button>
+          )}
+        </div>
       </div>
 
       {signals.length === 0 ? (
@@ -66,10 +71,10 @@ export default function SignalsPanel({ limit }: { limit?: number }) {
           })}
           {moreCount > 0 && (
             <button
-              onClick={() => askAI("Walk me through everything I should be paying attention to across my whole record, most important first.")}
+              onClick={() => go("signals")}
               className="flex w-full items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-accent hover:bg-canvas"
             >
-              +{moreCount} more · ask the AI to walk through them →
+              +{moreCount} more · see all action items →
             </button>
           )}
         </div>
