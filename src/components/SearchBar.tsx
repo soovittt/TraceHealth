@@ -66,7 +66,7 @@ export default function SearchBar() {
       {open && q.trim() && results && (
         <div className="absolute z-30 mt-1.5 max-h-96 w-full overflow-auto rounded-lg border border-line bg-surface p-1 shadow-pop animate-fade-in">
           {results.kind === "metric" && (
-            <button className="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left hover:bg-canvas" onClick={() => pickMetric(results.code)}>
+            <button className="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left hover:bg-line-soft" onClick={() => pickMetric(results.code)}>
               <span className="text-sm">Open <span className="font-medium">{results.code}</span> trend</span>
               <span className="text-xs text-ink-400">↵</span>
             </button>
@@ -78,12 +78,12 @@ export default function SearchBar() {
                 {results.year} · {results.encounters.length} encounters · {results.observations.length} labs
               </div>
               {results.encounters.map((e: any) => (
-                <button key={e._id} onClick={() => openDoc(e.documentId, e.page)} className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-canvas">
+                <button key={e._id} onClick={() => openDoc(e.documentId, e.page)} className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-line-soft">
                   <span className="text-ink-800">{e.title}</span>
                   <span className="mono text-2xs text-ink-400">{fmtDate(e.date)}</span>
                 </button>
               ))}
-              <button className="mt-0.5 w-full rounded-md px-2.5 py-1.5 text-left text-sm text-accent hover:bg-canvas" onClick={() => { setOpen(false); go("timeline"); }}>
+              <button className="mt-0.5 w-full rounded-md px-2.5 py-1.5 text-left text-sm text-accent hover:bg-line-soft" onClick={() => { setOpen(false); go("timeline"); }}>
                 Open full timeline →
               </button>
             </div>
@@ -99,7 +99,7 @@ export default function SearchBar() {
                 <div className="mb-0.5">
                   <div className="eyebrow px-2 py-1.5">In your records</div>
                   {results.documents.map((d: any) => (
-                    <button key={d._id} onClick={() => openDoc(d._id)} className="block w-full rounded-md px-2.5 py-1.5 text-left hover:bg-canvas">
+                    <button key={d._id} onClick={() => openDoc(d._id)} className="block w-full rounded-md px-2.5 py-1.5 text-left hover:bg-line-soft">
                       <span className="block text-sm text-ink-800">{d.org}</span>
                       {d.snippet && <span className="mt-0.5 block truncate text-2xs text-ink-400">{d.snippet}</span>}
                     </button>
@@ -123,7 +123,7 @@ function Group({ label, items }: { label: string; items: { label: string; onClic
     <div className="mb-0.5">
       <div className="eyebrow px-2 py-1.5">{label}</div>
       {items.map((it, i) => (
-        <button key={i} onClick={it.onClick} className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm text-ink-800 hover:bg-canvas">{it.label}</button>
+        <button key={i} onClick={it.onClick} className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm text-ink-800 hover:bg-line-soft">{it.label}</button>
       ))}
     </div>
   );

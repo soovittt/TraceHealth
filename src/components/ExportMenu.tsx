@@ -48,7 +48,7 @@ export default function ExportMenu({ className = "" }: { className?: string }) {
                 key={f.key}
                 onClick={() => run(f.key)}
                 disabled={!!busy}
-                className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-canvas disabled:opacity-50"
+                className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-line-soft disabled:opacity-50"
               >
                 <span className="text-sm text-ink-800">{busy === f.key ? "Preparing…" : f.label}</span>
                 <span className="text-2xs text-ink-400">{f.hint}</span>

@@ -56,7 +56,7 @@ export default function DoctorAssistant({ token }: { token: string | null }) {
           <div className="space-y-1.5">
             <div className="eyebrow mb-1">Try asking</div>
             {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => send(s)} className="block w-full rounded-md border border-line px-2.5 py-1.5 text-left text-xs text-ink-700 transition-colors hover:border-accent-line hover:bg-canvas">{s}</button>
+              <button key={s} onClick={() => send(s)} className="block w-full rounded-md border border-line px-2.5 py-1.5 text-left text-xs text-ink-700 transition-colors hover:border-accent-line hover:bg-line-soft">{s}</button>
             ))}
           </div>
         )}

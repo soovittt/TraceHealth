@@ -4,67 +4,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Color tokens as RGB channels so Tailwind's /alpha utilities keep working. */
+/* Notion-style palette — warm grays + a single blue accent. Tokens are RGB
+   channels so Tailwind's /alpha utilities keep working. */
 :root {
   color-scheme: light;
-  --ink-900: 24 24 27;
-  --ink-800: 39 39 42;
-  --ink-700: 63 63 70;
-  --ink-600: 82 82 91;
-  --ink-500: 113 113 122;
-  --ink-400: 161 161 170;
-  --ink-300: 212 212 216;
-  --line: 231 231 234;
-  --line-soft: 239 239 241;
-  --line-strong: 220 220 224;
-  --canvas: 246 246 247;
+  --ink-900: 55 53 47;      /* #37352f — Notion ink */
+  --ink-800: 68 66 60;
+  --ink-700: 92 91 84;
+  --ink-600: 120 119 116;   /* #787774 */
+  --ink-500: 145 144 141;
+  --ink-400: 155 154 151;   /* #9b9a97 */
+  --ink-300: 197 196 191;
+  --line: 233 233 231;      /* #e9e9e7 — hairline */
+  --line-soft: 241 241 239; /* #f1f1ef — hover fill */
+  --line-strong: 223 223 220;
+  --canvas: 252 252 251;    /* near-white body */
   --surface: 255 255 255;
-  --brand: 24 24 27;
+  --brand: 55 53 47;        /* near-black primary */
   --brand-fg: 255 255 255;
-  --accent: 91 91 214;
-  --accent-soft: 238 238 251;
-  --accent-line: 215 215 245;
-  --accent-hover: 81 81 201;
-  --good: 48 164 108;
-  --good-soft: 231 246 238;
-  --good-ink: 28 122 77;
-  --warn: 161 92 7;
-  --warn-soft: 251 241 224;
-  --warn-line: 240 217 172;
-  --bad: 220 61 67;
-  --bad-soft: 253 234 234;
-  --bad-ink: 192 52 58;
+  --accent: 35 131 226;     /* #2383e2 — Notion blue */
+  --accent-soft: 231 243 252;
+  --accent-line: 198 224 247;
+  --accent-hover: 25 118 210;
+  --good: 15 138 108;
+  --good-soft: 221 240 233;
+  --good-ink: 13 116 92;
+  --warn: 178 104 30;
+  --warn-soft: 251 236 221;
+  --warn-line: 240 214 180;
+  --bad: 224 62 62;
+  --bad-soft: 253 235 235;
+  --bad-ink: 195 52 52;
 }
 
 .dark {
   color-scheme: dark;
-  --ink-900: 244 244 245;
-  --ink-800: 228 228 231;
-  --ink-700: 201 201 207;
-  --ink-600: 161 161 170;
-  --ink-500: 139 139 146;
-  --ink-400: 113 113 122;
-  --ink-300: 75 75 82;
-  --line: 41 42 46;
-  --line-soft: 32 33 36;
-  --line-strong: 54 55 60;
-  --canvas: 13 14 16;
-  --surface: 23 24 27;
-  --brand: 244 244 245;
-  --brand-fg: 23 24 27;
-  --accent: 129 129 240;
-  --accent-soft: 37 37 58;
-  --accent-line: 58 58 92;
-  --accent-hover: 146 146 245;
-  --good: 63 184 124;
-  --good-soft: 20 40 30;
-  --good-ink: 111 219 165;
-  --warn: 208 138 58;
-  --warn-soft: 42 33 19;
-  --warn-line: 74 58 30;
-  --bad: 229 90 95;
-  --bad-soft: 42 23 24;
-  --bad-ink: 240 160 163;
+  --ink-900: 235 235 233;
+  --ink-800: 214 214 211;
+  --ink-700: 181 181 178;
+  --ink-600: 155 154 151;   /* #9b9a97 */
+  --ink-500: 133 132 129;
+  --ink-400: 120 119 116;
+  --ink-300: 92 91 88;
+  --line: 47 47 47;
+  --line-soft: 37 37 37;    /* #252525 hover fill */
+  --line-strong: 62 62 62;
+  --canvas: 25 25 25;       /* #191919 — Notion dark body */
+  --surface: 32 32 32;      /* #202020 */
+  --brand: 235 235 233;
+  --brand-fg: 25 25 25;
+  --accent: 45 154 245;
+  --accent-soft: 26 44 61;
+  --accent-line: 40 66 92;
+  --accent-hover: 70 170 250;
+  --good: 45 174 148;
+  --good-soft: 20 38 34;
+  --good-ink: 110 210 185;
+  --warn: 214 154 90;
+  --warn-soft: 42 33 20;
+  --warn-line: 74 58 34;
+  --bad: 235 100 100;
+  --bad-soft: 44 26 26;
+  --bad-ink: 240 160 160;
 }
 
 html,
@@ -111,7 +112,7 @@ body {
     @apply btn bg-brand text-brand-fg hover:opacity-90;
   }
   .btn-secondary {
-    @apply btn border border-line-strong bg-surface text-ink-800 hover:bg-canvas;
+    @apply btn border border-line-strong bg-surface text-ink-800 hover:bg-line-soft;
   }
   .btn-ghost {
     @apply btn text-ink-600 hover:bg-line-soft;

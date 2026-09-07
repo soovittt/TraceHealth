@@ -114,7 +114,7 @@ export default function ImportScreen() {
       <div className="mt-4">
         {mode === "extract" && (
           <section>
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-7 text-center transition-colors hover:border-accent-line hover:bg-canvas">
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-7 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
               <input type="file" className="hidden" accept=".txt,.csv,.md,.html" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { setFilename(f.name); setText(await f.text().catch(() => "")); } }} />
               <div className="text-sm font-medium text-ink-800">Choose a text file, or paste below</div>
               <div className="mt-1 text-xs text-ink-400">AI extracts labs, meds, conditions & allergies — every fact cited to this document</div>
@@ -134,7 +134,7 @@ export default function ImportScreen() {
             <div className="my-4 flex items-center gap-3 text-2xs text-ink-400">
               <span className="h-px flex-1 bg-line" /> or snap a photo <span className="h-px flex-1 bg-line" />
             </div>
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-6 py-5 text-center transition-colors hover:border-accent-line hover:bg-canvas">
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-6 py-5 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
               <input type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => snapLab(e.target.files)} />
               <svg viewBox="0 0 16 16" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2.5 5.5h2l1-1.5h5l1 1.5h2v7h-11zM8 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
@@ -147,7 +147,7 @@ export default function ImportScreen() {
 
         {mode === "import" && (
           <section>
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-9 text-center transition-colors hover:border-accent-line hover:bg-canvas">
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-9 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
               <input type="file" className="hidden" accept=".json,.fhir" onChange={(e) => importFile(e.target.files)} />
               <svg viewBox="0 0 16 16" className="h-6 w-6 text-ink-300" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 10V2m0 0L5 5m3-3 3 3M3 11.5v1a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 12.5v-1" />
@@ -224,7 +224,7 @@ function ManualForm({
     <section className="card p-4">
       <div className="flex gap-1.5">
         {(["observation", "medication", "condition", "allergy"] as Kind[]).map((k) => (
-          <button key={k} onClick={() => setKind(k)} className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors ${kind === k ? "bg-brand text-brand-fg" : "border border-line text-ink-600 hover:bg-canvas"}`}>
+          <button key={k} onClick={() => setKind(k)} className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors ${kind === k ? "bg-brand text-brand-fg" : "border border-line text-ink-600 hover:bg-line-soft"}`}>
             {k === "observation" ? "Lab" : k}
           </button>
         ))}

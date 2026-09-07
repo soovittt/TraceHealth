@@ -110,7 +110,7 @@ export default function Timeline() {
         <div ref={sentinel} />
         {status === "LoadingMore" && <div className="py-3 text-center text-xs text-ink-400">Loading more…</div>}
         {status === "CanLoadMore" && (
-          <button onClick={() => loadMore(40)} className="mx-auto block rounded-md border border-line px-3 py-1.5 text-xs text-ink-600 hover:bg-canvas">Load more</button>
+          <button onClick={() => loadMore(40)} className="mx-auto block rounded-md border border-line px-3 py-1.5 text-xs text-ink-600 hover:bg-line-soft">Load more</button>
         )}
         {status === "Exhausted" && results.length > 0 && <div className="py-3 text-center text-2xs text-ink-400">End of record</div>}
       </div>
@@ -125,7 +125,7 @@ function Row({ it, onEvidence, onMetric }: { it: any; onEvidence: (e: any) => vo
   return (
     <button
       onClick={() => (isLab && it.code ? onMetric(it.code) : it.documentId && onEvidence({ documentId: it.documentId, page: it.page }))}
-      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-canvas"
+      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-line-soft"
     >
       <span className="mono w-6 shrink-0 text-right text-sm text-ink-400">{day}</span>
       <TypeBadge type={it.type} />

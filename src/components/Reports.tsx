@@ -72,7 +72,7 @@ export default function Reports() {
             <button
               key={r._id}
               onClick={() => setOpenId(r._id)}
-              className={`card w-full p-3 text-left transition-colors hover:bg-canvas ${open?._id === r._id ? "border-accent-line" : ""}`}
+              className={`card w-full p-3 text-left transition-colors hover:bg-line-soft ${open?._id === r._id ? "border-accent-line" : ""}`}
             >
               <div className="truncate text-sm font-medium text-ink-900">{r.title}</div>
               <div className="mono mt-0.5 flex items-center gap-2 text-2xs text-ink-400">
