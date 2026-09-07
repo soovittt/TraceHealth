@@ -526,26 +526,32 @@ export const getShare = query({
 
 // ---- search --------------------------------------------------------------
 
+// A short highlighted window around the matched term in a document excerpt.
+function snippetOf(text: string | undefined, term: string): string {
+  if (!text) return "";
+  const i = text.toLowerCase().indexOf(term);
+  if (i < 0) return text.slice(0, 100).trim();
+  const start = Math.max(0, i - 40);
+  return (start > 0 ? "…" : "") + text.slice(start, i + term.length + 60).replace(/\s+/g, " ").trim() + "…";
+}
+
 export const search = query({
   args: { patientId: v.id("patients"), q: v.string() },
   handler: async (ctx, { patientId, q }) => {
-    const query = q.trim().toLowerCase();
-    if (!query) return { kind: "empty" as const };
+    const query = q.trim();
+    const lc = query.toLowerCase();
+    if (!lc) return { kind: "empty" as const };
+    if (!(await canRead(ctx, patientId))) return { kind: "empty" as const };
 
-    // Year search reconstructs a year.
-    const yearMatch = query.match(/^(19|20)\d{2}$/);
-    const [obs, meds, conds, encs, missing, metricsList] = await Promise.all([
-      byPatient(ctx, "observations", patientId),
-      byPatient(ctx, "medications", patientId),
-      byPatient(ctx, "conditions", patientId),
-      byPatient(ctx, "encounters", patientId),
-      byPatient(ctx, "missingRecords", patientId),
-      byPatient(ctx, "observations", patientId),
-    ]);
-
-    if (yearMatch) {
-      const year = parseInt(query, 10);
+    // Year search reconstructs a year (needs the full per-patient sets).
+    if (/^(19|20)\d{2}$/.test(lc)) {
+      const year = parseInt(lc, 10);
       const yr = (t: number) => new Date(t).getUTCFullYear();
+      const [obs, encs, meds] = await Promise.all([
+        byPatient(ctx, "observations", patientId),
+        byPatient(ctx, "encounters", patientId),
+        byPatient(ctx, "medications", patientId),
+      ]);
       return {
         kind: "year" as const,
         year,
@@ -555,31 +561,38 @@ export const search = query({
       };
     }
 
-    // Metric search jumps to the graph.
-    const codeByWord: Record<string, string> = {
-      cholesterol: "LDL",
-      ldl: "LDL",
-      hba1c: "HBA1C",
-      a1c: "HBA1C",
-      sugar: "HBA1C",
-      weight: "WEIGHT",
-      "vitamin d": "VITD",
-    };
+    // Metric shortcut → jump to the graph (verified via the by_patient_code index).
+    const codeByWord: Record<string, string> = { cholesterol: "LDL", ldl: "LDL", hba1c: "HBA1C", a1c: "HBA1C", sugar: "HBA1C", weight: "WEIGHT", "vitamin d": "VITD" };
     for (const [word, code] of Object.entries(codeByWord)) {
-      if (query.includes(word) && metricsList.some((o: any) => o.code === code)) {
-        return { kind: "metric" as const, code };
+      if (lc.includes(word)) {
+        const has = await ctx.db
+          .query("observations")
+          .withIndex("by_patient_code", (x) => x.eq("patientId", patientId).eq("code", code))
+          .first();
+        if (has) return { kind: "metric" as const, code };
       }
     }
 
-    // General keyword search across everything.
-    const hit = (s?: string) => (s ?? "").toLowerCase().includes(query);
+    // Native full-text search — relevance-ranked, per-patient, no table scan.
+    const run = (table: string, field: string, idx: string) =>
+      (ctx.db.query(table as any) as any)
+        .withSearchIndex(idx, (s: any) => s.search(field, query).eq("patientId", patientId))
+        .take(8);
+    const [medications, conditions, encounters, missing, docs] = await Promise.all([
+      run("medications", "name", "search_name"),
+      run("conditions", "name", "search_name"),
+      run("encounters", "title", "search_title"),
+      run("missingRecords", "label", "search_label"),
+      run("documents", "excerpt", "search_excerpt"),
+    ]);
     return {
       kind: "results" as const,
-      query,
-      medications: meds.filter((m: any) => hit(m.name) || hit(m.normalizedName)),
-      conditions: conds.filter((c: any) => hit(c.name) || hit(c.normalizedName)),
-      encounters: encs.filter((e: any) => hit(e.title) || hit(e.summary) || hit(e.org)),
-      missing: missing.filter((m: any) => hit(m.label) || hit(m.org)),
+      query: lc,
+      medications,
+      conditions,
+      encounters,
+      missing,
+      documents: (docs as any[]).map((d: any) => ({ _id: d._id, org: d.org, filename: d.filename, receivedAt: d.receivedAt, snippet: snippetOf(d.excerpt, lc) })),
     };
   },
 });

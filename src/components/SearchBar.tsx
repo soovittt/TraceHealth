@@ -95,7 +95,18 @@ export default function SearchBar() {
               <Group label="Conditions" items={results.conditions.map((c: any) => ({ label: c.name, onClick: () => openDoc(c.documentId, c.page) }))} />
               <Group label="Visits" items={results.encounters.map((e: any) => ({ label: e.title, onClick: () => openDoc(e.documentId, e.page) }))} />
               <Group label="Missing records" items={results.missing.map((m: any) => ({ label: `${m.label} · ${m.org}`, onClick: () => openDoc(m.referencedInDocumentId) }))} />
-              {results.medications.length + results.conditions.length + results.encounters.length + results.missing.length === 0 && (
+              {(results.documents ?? []).length > 0 && (
+                <div className="mb-0.5">
+                  <div className="eyebrow px-2 py-1.5">In your records</div>
+                  {results.documents.map((d: any) => (
+                    <button key={d._id} onClick={() => openDoc(d._id)} className="block w-full rounded-md px-2.5 py-1.5 text-left hover:bg-canvas">
+                      <span className="block text-sm text-ink-800">{d.org}</span>
+                      {d.snippet && <span className="mt-0.5 block truncate text-2xs text-ink-400">{d.snippet}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {results.medications.length + results.conditions.length + results.encounters.length + results.missing.length + (results.documents ?? []).length === 0 && (
                 <div className="px-2.5 py-3 text-sm text-ink-400">No matches.</div>
               )}
             </div>

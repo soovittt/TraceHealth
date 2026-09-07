@@ -40,7 +40,10 @@ export default defineSchema({
     storageId: v.optional(v.id("_storage")),
     // Raw text kept for evidence viewing when there is no original PDF.
     excerpt: v.optional(v.string()),
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    // Native full-text search over document content, scoped per patient.
+    .searchIndex("search_excerpt", { searchField: "excerpt", filterFields: ["patientId"] }),
 
   providers: defineTable({
     patientId: v.id("patients"),
@@ -78,7 +81,9 @@ export default defineSchema({
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_name", { searchField: "name", filterFields: ["patientId"] }),
 
   conditions: defineTable({
     patientId: v.id("patients"),
@@ -89,7 +94,9 @@ export default defineSchema({
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_name", { searchField: "name", filterFields: ["patientId"] }),
 
   encounters: defineTable({
     patientId: v.id("patients"),
@@ -102,7 +109,9 @@ export default defineSchema({
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_title", { searchField: "title", filterFields: ["patientId"] }),
 
   allergies: defineTable({
     patientId: v.id("patients"),
@@ -138,7 +147,9 @@ export default defineSchema({
     date: v.optional(v.number()),
     referencedInDocumentId: v.id("documents"),
     status: v.string(), // "open" | "requested"
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_label", { searchField: "label", filterFields: ["patientId"] }),
 
   // Temporary doctor-share links.
   shares: defineTable({
