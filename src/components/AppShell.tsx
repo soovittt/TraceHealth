@@ -159,8 +159,8 @@ export default function AppShell() {
         </div>
       </nav>
 
-      {/* AI dock — left */}
-      {dockSide === "left" && <AssistantDock />}
+      {/* AI dock — left (hidden on the full-page chat, which is itself the assistant) */}
+      {dockSide === "left" && view !== "chat" && <AssistantDock />}
 
       {/* main */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -221,8 +221,8 @@ export default function AppShell() {
         </main>
       </div>
 
-      {/* AI dock — right */}
-      {dockSide === "right" && <AssistantDock />}
+      {/* AI dock — right (hidden on the full-page chat, which is itself the assistant) */}
+      {dockSide === "right" && view !== "chat" && <AssistantDock />}
 
       <EvidencePanel />
 
