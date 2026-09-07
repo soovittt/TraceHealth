@@ -578,13 +578,31 @@ export const search = query({
       (ctx.db.query(table as any) as any)
         .withSearchIndex(idx, (s: any) => s.search(field, query).eq("patientId", patientId))
         .take(8);
-    const [medications, conditions, encounters, missing, docs] = await Promise.all([
+    let [medications, conditions, encounters, missing, docs] = await Promise.all([
       run("medications", "name", "search_name"),
       run("conditions", "name", "search_name"),
       run("encounters", "title", "search_title"),
       run("missingRecords", "label", "search_label"),
       run("documents", "excerpt", "search_excerpt"),
     ]);
+
+    // Forgiving fallback: the search index is token-based, so a substring inside
+    // a word ("statin" in "Atorvastatin") won't match. If no STRUCTURED record
+    // hit (documents aside), fall back to a per-patient substring scan.
+    if (medications.length + conditions.length + encounters.length + missing.length === 0) {
+      const hit = (s?: string) => (s ?? "").toLowerCase().includes(lc);
+      const [meds, conds, encs, miss] = await Promise.all([
+        byPatient(ctx, "medications", patientId),
+        byPatient(ctx, "conditions", patientId),
+        byPatient(ctx, "encounters", patientId),
+        byPatient(ctx, "missingRecords", patientId),
+      ]);
+      medications = meds.filter((m: any) => hit(m.name) || hit(m.normalizedName)).slice(0, 8);
+      conditions = conds.filter((c: any) => hit(c.name) || hit(c.normalizedName)).slice(0, 8);
+      encounters = encs.filter((e: any) => hit(e.title) || hit(e.org)).slice(0, 8);
+      missing = miss.filter((m: any) => hit(m.label) || hit(m.org)).slice(0, 8);
+    }
+
     return {
       kind: "results" as const,
       query: lc,

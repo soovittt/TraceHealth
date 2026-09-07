@@ -57,7 +57,7 @@ export default function SearchBar() {
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder="Search records — cholesterol, metformin, 2024…"
+          placeholder="Search your records — a med, condition, visit, or year…"
           className="w-full bg-transparent text-sm outline-none placeholder:text-ink-400"
         />
         <span className="kbd hidden sm:flex">⌘K</span>
@@ -107,7 +107,10 @@ export default function SearchBar() {
                 </div>
               )}
               {results.medications.length + results.conditions.length + results.encounters.length + results.missing.length + (results.documents ?? []).length === 0 && (
-                <div className="px-2.5 py-3 text-sm text-ink-400">No matches.</div>
+                <div className="px-2.5 py-3 text-sm text-ink-400">
+                  No matches for “{q}” in your record.
+                  <span className="mt-0.5 block text-2xs text-ink-400">Search covers your medications, conditions, visits, and years — this record may not contain that term.</span>
+                </div>
               )}
             </div>
           )}
