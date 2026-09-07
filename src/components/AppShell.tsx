@@ -17,6 +17,7 @@ import Integrations from "./Integrations";
 import Reports from "./Reports";
 import ImportScreen from "./ImportScreen";
 import NeedsAttention from "./NeedsAttention";
+import AssistantChat from "./AssistantChat";
 import DoctorView from "./DoctorView";
 
 const NAV: { key: any; label: string; hint: string; icon: string }[] = [
@@ -158,8 +159,8 @@ export default function AppShell() {
         </div>
       </nav>
 
-      {/* AI dock — left */}
-      {dockSide === "left" && <AssistantDock />}
+      {/* AI dock — left (hidden on the full-page chat, which is itself the assistant) */}
+      {dockSide === "left" && view !== "chat" && <AssistantDock />}
 
       {/* main */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -209,14 +210,19 @@ export default function AppShell() {
               {view === "integrations" && <Integrations />}
               {view === "import" && <ImportScreen />}
               {view === "signals" && <NeedsAttention />}
+              {view === "chat" && (
+                <div className="mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-lg border border-line bg-surface">
+                  <AssistantChat />
+                </div>
+              )}
               {view === "reports" && <Reports />}
             </>
           )}
         </main>
       </div>
 
-      {/* AI dock — right */}
-      {dockSide === "right" && <AssistantDock />}
+      {/* AI dock — right (hidden on the full-page chat, which is itself the assistant) */}
+      {dockSide === "right" && view !== "chat" && <AssistantDock />}
 
       <EvidencePanel />
 

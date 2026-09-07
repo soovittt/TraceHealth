@@ -1,4 +1,4 @@
-import { query, mutation, internalQuery, internalAction, internalMutation } from "./_generated/server";
+import { query, mutation, action, internalQuery, internalAction, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
@@ -164,43 +164,47 @@ export const aiSnapshot = internalQuery({
 
 // ---- the AI turn ---------------------------------------------------------
 
-export const answer = internalAction({
-  args: {
-    patientId: v.id("patients"),
-    question: v.string(),
-    messageId: v.id("chatMessages"),
-    context: v.optional(v.string()),
-    attachment: v.optional(v.object({ filename: v.string(), text: v.string() })),
+// Shared grounded tool-calling agent core. Used by the persisted patient chat
+// AND the ephemeral, share-scoped doctor chat. `emit` streams the step list for
+// a live trace; omit it for a one-shot answer. NEVER persists — returns the
+// result. Access is decided by the CALLER (owner via assertWrite upstream, or a
+// verified share token), so this only ever reads the one patientId it's handed.
+async function runAgent(
+  ctx: any,
+  opts: {
+    patientId: Id<"patients">;
+    question: string;
+    context?: string;
+    attachment?: { filename: string; text: string };
+    shareToken?: string;
+    emit?: (steps: any[]) => Promise<any>;
   },
-  handler: async (ctx, { patientId, question, messageId, context, attachment }) => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-    if (!apiKey) {
-      await ctx.runMutation(internal.assistant.finalize, {
-        messageId,
-        content: "The AI assistant needs an OpenAI key. Run: npx convex env set OPENAI_API_KEY sk-…",
-        error: true,
-        citations: [],
-      });
-      return;
-    }
+): Promise<{
+  content: string;
+  error: boolean;
+  citations: { documentId: Id<"documents">; label: string }[];
+  charts: string[];
+  followups: string[];
+  webSources: { title: string; url: string }[];
+  steps: any[];
+}> {
+  const { patientId, question, context, attachment, shareToken, emit } = opts;
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
-    // --- live reasoning trace: rewrite the step list as real work happens ----
-    const steps: { title: string; detail?: string; status: string }[] = [];
-    const flush = () => ctx.runMutation(internal.assistant.setSteps, { messageId, steps });
-    const begin = async (title: string, detail?: string) => {
-      steps.push({ title, detail, status: "running" });
-      await flush();
-    };
-    const done = async (detail?: string) => {
-      const last = steps[steps.length - 1];
-      if (last) {
-        last.status = "done";
-        if (detail !== undefined) last.detail = detail;
-      }
-      await flush();
-    };
+  const steps: { title: string; detail?: string; status: string }[] = [];
+  const flush = async () => { if (emit) await emit(steps); };
+  const begin = async (title: string, detail?: string) => { steps.push({ title, detail, status: "running" }); await flush(); };
+  const done = async (detail?: string) => {
+    const last = steps[steps.length - 1];
+    if (last) { last.status = "done"; if (detail !== undefined) last.detail = detail; }
+    await flush();
+  };
+  const fail = (content: string) => ({ content, error: true, citations: [], charts: [], followups: [], webSources: [], steps });
 
+  if (!apiKey) return fail("The AI assistant needs an OpenAI key. Run: npx convex env set OPENAI_API_KEY sk-…");
+
+  {
     await begin("Reading your health record");
     const s: any = await ctx.runQuery(internal.assistant.aiSnapshot, { patientId });
     const srcCount = new Set(s.docs.map((d: any) => d.org)).size;
@@ -211,7 +215,7 @@ export const answer = internalAction({
 
     // Fold the deterministic "needs attention" signals in, then build the tool
     // layer the model can call to go deep on demand.
-    const signals: any[] = await ctx.runQuery(api.signals.getSignals, { patientId });
+    const signals: any[] = await ctx.runQuery(api.signals.getSignals, { patientId, shareToken });
     const tctx = buildToolContext(s, signals, iso);
     const tools = toolSchemas(tctx);
     const allCodes = new Set<string>(tctx.metrics.map((m: any) => m.code));
@@ -345,19 +349,45 @@ export const answer = internalAction({
         .slice(0, 3);
       await done();
     } catch (e: any) {
-      await ctx.runMutation(internal.assistant.finalize, {
-        messageId,
-        content: `Sorry — I hit an error reaching the model.\n\n\`${String(e?.message ?? e).slice(0, 200)}\``,
-        error: true,
-        citations: [],
-      });
-      return;
+      return fail(`Sorry — I hit an error reaching the model.\n\n\`${String(e?.message ?? e).slice(0, 200)}\``);
     }
 
     // Dedupe web sources by URL.
     const seenUrl = new Set<string>();
     const webOut = webSources.filter((w) => (seenUrl.has(w.url) ? false : (seenUrl.add(w.url), true))).slice(0, 4);
-    await ctx.runMutation(internal.assistant.finalize, { messageId, content, citations, charts, followups, webSources: webOut, error: false });
+    return { content, error: false, citations, charts, followups, webSources: webOut, steps };
+  }
+}
+
+export const answer = internalAction({
+  args: {
+    patientId: v.id("patients"),
+    question: v.string(),
+    messageId: v.id("chatMessages"),
+    context: v.optional(v.string()),
+    attachment: v.optional(v.object({ filename: v.string(), text: v.string() })),
+  },
+  handler: async (ctx, { patientId, question, messageId, context, attachment }) => {
+    const res = await runAgent(ctx, {
+      patientId, question, context, attachment,
+      emit: (steps) => ctx.runMutation(internal.assistant.setSteps, { messageId, steps }),
+    });
+    await ctx.runMutation(internal.assistant.finalize, {
+      messageId, content: res.content, error: res.error, citations: res.citations, charts: res.charts, followups: res.followups, webSources: res.webSources,
+    });
+  },
+});
+
+// Read-only, share-scoped doctor chat. The guest supplies ONLY a share token;
+// it resolves to exactly one patient server-side, so no other record can be
+// reached. Ephemeral — nothing is written to the patient's chat history.
+export const askShared = action({
+  args: { shareToken: v.string(), question: v.string() },
+  handler: async (ctx, { shareToken, question }): Promise<any> => {
+    const share: any = await ctx.runQuery(api.health.getShare, { token: shareToken });
+    if (!share || share.expired) throw new Error("This share link is invalid or has expired.");
+    const res = await runAgent(ctx, { patientId: share.patientId, question, shareToken });
+    return { content: res.content, error: res.error, citations: res.citations, charts: res.charts, followups: res.followups, webSources: res.webSources, steps: res.steps };
   },
 });
 

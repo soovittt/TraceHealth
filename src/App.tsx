@@ -6,7 +6,6 @@ import Landing from "./components/Landing";
 import Auth from "./components/Auth";
 import AppShell from "./components/AppShell";
 import DoctorView from "./components/DoctorView";
-import ChatPage from "./components/ChatPage";
 import OAuthCallback from "./components/OAuthCallback";
 
 // Whenever a user is signed in without a loaded record, resolve (or create)
@@ -40,7 +39,6 @@ function Router() {
 
   if (view === "landing") return <Landing />;
   if (view === "auth") return <Auth />;
-  if (view === "chat") return <ChatPage />;
   return <AppShell />;
 }
 
