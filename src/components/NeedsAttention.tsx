@@ -71,22 +71,35 @@ export default function NeedsAttention() {
                   <span className="mono text-2xs text-ink-400">{items.length}</span>
                 </div>
                 <div className="space-y-2">
-                  {items.map((s: any) => (
-                    <button
-                      key={s.id}
-                      onClick={() => (s.code ? openMetric(s.code) : s.documentId ? showEvidence({ documentId: s.documentId, page: s.page }) : undefined)}
-                      className={`flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:brightness-[0.99] ${g.ring}`}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-ink-900">{s.title}</span>
-                          <span className="rounded bg-surface/60 px-1.5 py-0.5 text-2xs text-ink-500">{KIND_LABEL[s.kind] ?? "Flag"}</span>
-                        </span>
-                        <span className="mt-1 block text-sm text-ink-600">{s.detail}</span>
-                      </span>
-                      <span className="mt-0.5 shrink-0 text-2xs font-medium text-accent">{s.code ? "View trend →" : s.documentId ? "View source →" : ""}</span>
-                    </button>
-                  ))}
+                  {items.map((s: any) => {
+                    const nav = () => (s.code ? openMetric(s.code) : s.documentId ? showEvidence({ documentId: s.documentId, page: s.page }) : undefined);
+                    return (
+                      <div key={s.id} className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${g.ring}`}>
+                        <button onClick={nav} className="min-w-0 flex-1 text-left">
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-ink-900">{s.title}</span>
+                            <span className="rounded bg-surface/60 px-1.5 py-0.5 text-2xs text-ink-500">{KIND_LABEL[s.kind] ?? "Flag"}</span>
+                          </span>
+                          <span className="mt-1 block text-sm text-ink-600">{s.detail}</span>
+                        </button>
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <button
+                            onClick={() => askAI(`Explain this flag from my record in plain language — what "${s.title}" (${s.detail}) means for me, why it matters, and what I might ask my doctor. Keep it short.`)}
+                            className="flex items-center gap-1 rounded-md border border-accent-line bg-surface px-2 py-1 text-2xs font-medium text-accent transition-colors hover:bg-accent-soft"
+                            title="Explain this one with AI"
+                          >
+                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
+                            Explain
+                          </button>
+                          {(s.code || s.documentId) && (
+                            <button onClick={nav} className="text-2xs font-medium text-ink-400 hover:text-ink-700">
+                              {s.code ? "View trend →" : "View source →"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             );
