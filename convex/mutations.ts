@@ -2,6 +2,7 @@ import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertWrite } from "./authz";
+import { rebuildEvents } from "./events";
 
 // Fresh patient for the real upload path — owned by the signed-in user.
 export const createPatient = mutation({
@@ -49,6 +50,7 @@ export const disconnectSource = mutation({
     for (const m of missing) if (targetIds.has(m.referencedInDocumentId)) await ctx.db.delete(m._id);
 
     for (const id of targetIds) await ctx.db.delete(id);
+    await rebuildEvents(ctx, patientId);
     return { removed: targetIds.size };
   },
 });

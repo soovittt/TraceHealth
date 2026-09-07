@@ -103,7 +103,7 @@ export default function HealthHome() {
                 <button
                   key={it.id}
                   onClick={() => it.documentId && showEvidence({ documentId: it.documentId, page: it.page })}
-                  className={`flex w-full items-center gap-3 px-3.5 py-2 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}
+                  className={`flex w-full items-center gap-3 px-3.5 py-2 text-left hover:bg-line-soft ${i > 0 ? "border-t border-line-soft" : ""}`}
                 >
                   <span className="mono w-[64px] shrink-0 text-2xs text-ink-400">{fmtDate(it.date)}</span>
                   <TypeTag type={it.type} />
@@ -123,7 +123,7 @@ export default function HealthHome() {
                 const rising = m.last > m.first;
                 const bad = (m.direction === "high_bad" && rising) || (m.direction === "low_bad" && !rising);
                 return (
-                  <button key={m.code} onClick={() => openMetric(m.code)} className={`flex w-full items-center gap-2 px-3.5 py-1.5 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}>
+                  <button key={m.code} onClick={() => openMetric(m.code)} className={`flex w-full items-center gap-2 px-3.5 py-1.5 text-left hover:bg-line-soft ${i > 0 ? "border-t border-line-soft" : ""}`}>
                     <span className="min-w-0 flex-1 truncate text-sm text-ink-700">{m.label}</span>
                     <span className="hidden h-5 w-14 sm:block"><SparkFromMetric code={m.code} /></span>
                     <span className="mono w-16 shrink-0 text-right text-sm font-medium text-ink-900">{fmtNum(m.last)}<span className="ml-0.5 text-2xs font-normal text-ink-400">{m.unit}</span></span>
@@ -140,13 +140,13 @@ export default function HealthHome() {
             <SectionHead title="Active meds & conditions" action="Timeline →" onClick={() => go("timeline")} />
             <div className="card flex-1 overflow-auto">
               {activeMeds.slice(0, 4).map((m: any, i: number) => (
-                <button key={m._id} onClick={() => showEvidence({ documentId: m.documentId, page: m.page })} className={`flex w-full items-center justify-between px-3.5 py-1.5 text-left hover:bg-canvas ${i > 0 ? "border-t border-line-soft" : ""}`}>
+                <button key={m._id} onClick={() => showEvidence({ documentId: m.documentId, page: m.page })} className={`flex w-full items-center justify-between px-3.5 py-1.5 text-left hover:bg-line-soft ${i > 0 ? "border-t border-line-soft" : ""}`}>
                   <span className="flex items-center gap-2 text-sm text-ink-800"><span className="tag shrink-0">Rx</span>{m.name}</span>
                   <span className="mono text-2xs text-ink-500">{m.dose ? `${m.dose} ${m.doseUnit}` : ""}</span>
                 </button>
               ))}
               {activeConds.slice(0, 4).map((c: any, i: number) => (
-                <button key={c._id} onClick={() => showEvidence({ documentId: c.documentId, page: c.page })} className="flex w-full items-center justify-between border-t border-line-soft px-3.5 py-1.5 text-left hover:bg-canvas">
+                <button key={c._id} onClick={() => showEvidence({ documentId: c.documentId, page: c.page })} className="flex w-full items-center justify-between border-t border-line-soft px-3.5 py-1.5 text-left hover:bg-line-soft">
                   <span className="flex items-center gap-2 text-sm text-ink-800"><span className="tag shrink-0">Dx</span>{c.name}</span>
                   <span className="mono text-2xs text-ink-400">{c.diagnosedDate ? year(c.diagnosedDate) : ""}</span>
                 </button>
@@ -203,7 +203,7 @@ function EmptyRecord({ name, go }: { name: string; go: (v: any) => void }) {
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {cards.map((c) => (
-          <button key={c.t} onClick={() => go(c.to)} className="card p-4 text-left transition-colors hover:border-accent-line hover:bg-canvas">
+          <button key={c.t} onClick={() => go(c.to)} className="card p-4 text-left transition-colors hover:border-accent-line hover:bg-line-soft">
             {c.tag && <span className="tag mb-2 border-accent-line text-accent">{c.tag}</span>}
             <div className="text-sm font-medium text-ink-900">{c.t}</div>
             <div className="mt-1 text-xs text-ink-500">{c.d}</div>

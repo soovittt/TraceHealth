@@ -77,7 +77,7 @@ export default function AppShell() {
       {/* sidebar */}
       <nav className="flex h-full w-[216px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface">
         <button
-          className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 text-left hover:bg-canvas"
+          className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 text-left hover:bg-line-soft"
           onClick={() => go("landing")}
         >
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand text-brand-fg">
@@ -106,7 +106,7 @@ export default function AppShell() {
                     n.key === "ask" ? toggleDock(true) : n.key === "metric" ? openMetric("LDL") : go(n.key)
                   }
                   className={`group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors ${
-                    active ? "bg-line-soft font-medium text-ink-900" : "text-ink-600 hover:bg-canvas"
+                    active ? "bg-line-soft font-medium text-ink-900" : "text-ink-600 hover:bg-line-soft"
                   }`}
                 >
                   <svg viewBox="0 0 16 16" className={`h-4 w-4 ${active ? "text-ink-900" : "text-ink-400"}`} fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">

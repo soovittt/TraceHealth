@@ -147,7 +147,7 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
               {(conversations ?? []).map((c: any) => (
                 <div
                   key={c._id}
-                  className={`group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-canvas ${c._id === conversationId ? "bg-line-soft" : ""}`}
+                  className={`group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-line-soft ${c._id === conversationId ? "bg-line-soft" : ""}`}
                 >
                   <button
                     className="min-w-0 flex-1 text-left"
@@ -188,7 +188,7 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="rounded-md border border-line px-3 py-2 text-left text-sm text-ink-700 transition-colors hover:border-accent-line hover:bg-canvas"
+                  className="rounded-md border border-line px-3 py-2 text-left text-sm text-ink-700 transition-colors hover:border-accent-line hover:bg-line-soft"
                 >
                   {s}
                 </button>
@@ -294,7 +294,7 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
           <button
             onClick={() => fileRef.current?.click()}
             title="Attach a file"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-line-strong text-ink-500 hover:bg-canvas hover:text-ink-800"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-line-strong text-ink-500 hover:bg-line-soft hover:text-ink-800"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 5.5 6 10.5a1.8 1.8 0 0 0 2.5 2.5l5-5a3 3 0 0 0-4.2-4.2l-5.3 5.3a4.2 4.2 0 0 0 6 6L14 8" />

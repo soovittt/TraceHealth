@@ -40,7 +40,10 @@ export default defineSchema({
     storageId: v.optional(v.id("_storage")),
     // Raw text kept for evidence viewing when there is no original PDF.
     excerpt: v.optional(v.string()),
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    // Native full-text search over document content, scoped per patient.
+    .searchIndex("search_excerpt", { searchField: "excerpt", filterFields: ["patientId"] }),
 
   providers: defineTable({
     patientId: v.id("patients"),
@@ -78,7 +81,9 @@ export default defineSchema({
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_name", { searchField: "name", filterFields: ["patientId"] }),
 
   conditions: defineTable({
     patientId: v.id("patients"),
@@ -89,7 +94,9 @@ export default defineSchema({
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_name", { searchField: "name", filterFields: ["patientId"] }),
 
   encounters: defineTable({
     patientId: v.id("patients"),
@@ -102,7 +109,9 @@ export default defineSchema({
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_title", { searchField: "title", filterFields: ["patientId"] }),
 
   allergies: defineTable({
     patientId: v.id("patients"),
@@ -138,7 +147,9 @@ export default defineSchema({
     date: v.optional(v.number()),
     referencedInDocumentId: v.id("documents"),
     status: v.string(), // "open" | "requested"
-  }).index("by_patient", ["patientId"]),
+  })
+    .index("by_patient", ["patientId"])
+    .searchIndex("search_label", { searchField: "label", filterFields: ["patientId"] }),
 
   // Temporary doctor-share links.
   shares: defineTable({
@@ -195,6 +206,26 @@ export default defineSchema({
     fhirDocId: v.optional(v.string()), // set after write-back
     fhirStatus: v.optional(v.string()), // "written" | "error"
   }).index("by_patient", ["patientId"]),
+
+  // Denormalized, dated feed of every record type — one row per timeline item.
+  // Kept in sync from the source tables on ingest, so the timeline is a single
+  // indexed query with real cursor-based pagination (Convex .paginate()).
+  events: defineTable({
+    patientId: v.id("patients"),
+    type: v.string(), // "lab" | "medication" | "condition" | "encounter" | "allergy"
+    date: v.number(),
+    title: v.string(),
+    subtitle: v.optional(v.string()),
+    code: v.optional(v.string()), // metric code, for labs
+    value: v.optional(v.number()),
+    unit: v.optional(v.string()),
+    abnormal: v.optional(v.boolean()),
+    documentId: v.optional(v.id("documents")),
+    page: v.optional(v.number()),
+    sourceId: v.string(), // _id of the underlying observation/med/etc.
+  })
+    .index("by_patient_date", ["patientId", "date"])
+    .index("by_patient_type_date", ["patientId", "type", "date"]),
 
   // Each distinct AI chat thread.
   conversations: defineTable({

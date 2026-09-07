@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { METRIC_META } from "./metrics";
 import { assertWrite } from "./authz";
+import { rebuildEvents } from "./events";
 
 // ---- real upload + OpenAI extraction path --------------------------------
 
@@ -120,6 +121,7 @@ export const insertExtracted = internalMutation({
         provenance: "ai_extracted",
       });
     }
+    await rebuildEvents(ctx, a.patientId);
     return {
       documentId,
       counts: {
@@ -333,6 +335,7 @@ export const importBundle = mutation({
     for (const e of encs) await ctx.db.insert("encounters", { ...base, kind: e.kind, title: e.title, date: e.date ?? Date.now() });
     for (const a of algs) await ctx.db.insert("allergies", { ...base, substance: a.substance, reaction: a.reaction });
 
+    await rebuildEvents(ctx, patientId);
     return { observations: obs.length, medications: meds.length, conditions: conds.length, encounters: encs.length, allergies: algs.length };
   },
 });
@@ -394,6 +397,7 @@ export const addManualRecord = mutation({
       if (!a.substance) throw new Error("A substance is required.");
       await ctx.db.insert("allergies", { ...base, substance: a.substance, reaction: a.reaction });
     }
+    await rebuildEvents(ctx, a.patientId);
     return { ok: true };
   },
 });

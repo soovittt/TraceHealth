@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertWrite } from "./authz";
+import { rebuildEvents } from "./events";
 
 // SMART on FHIR ingestion. The same mapper serves the open sandbox and any
 // OAuth-connected provider (Epic, Cerner, aggregators) — only the base URL +
@@ -244,6 +245,7 @@ export const insertFhirBundle = internalMutation({
 
     const counts =
       a.observations.length + a.medications.length + a.conditions.length + a.encounters.length + a.allergies.length;
+    await rebuildEvents(ctx, a.patientId);
     return { counts };
   },
 });

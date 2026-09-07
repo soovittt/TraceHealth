@@ -55,7 +55,7 @@ export default function SignalsPanel({ limit }: { limit?: number }) {
             const tone = TONE[s.severity] ?? TONE.info;
             const act = () => (s.code ? openMetric(s.code) : s.documentId ? showEvidence({ documentId: s.documentId, page: s.page }) : undefined);
             return (
-              <button key={s.id} onClick={act} className="flex w-full items-start gap-3 px-4 py-2 text-left transition-colors hover:bg-canvas">
+              <button key={s.id} onClick={act} className="flex w-full items-start gap-3 px-4 py-2 text-left transition-colors hover:bg-line-soft">
                 <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-medium text-ink-900">{s.title}</span>
@@ -72,7 +72,7 @@ export default function SignalsPanel({ limit }: { limit?: number }) {
           {moreCount > 0 && (
             <button
               onClick={() => go("signals")}
-              className="flex w-full items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-accent hover:bg-canvas"
+              className="flex w-full items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-accent hover:bg-line-soft"
             >
               +{moreCount} more · see all action items →
             </button>

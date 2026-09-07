@@ -249,7 +249,7 @@ function RelatedPanel({ metric }: { metric: any }) {
               <button
                 key={i}
                 onClick={c.onClick}
-                className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink-800 transition-colors hover:border-accent-line hover:bg-canvas"
+                className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink-800 transition-colors hover:border-accent-line hover:bg-line-soft"
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${dot(c.tone)}`} />
                 {c.label}
