@@ -13,7 +13,7 @@ export default function MetricGraph() {
   const explainMetric = useAction(api.insights.explainMetric);
   const code = metricCode ?? "LDL";
 
-  const [exp, setExp] = useState<{ explanation: string; questions: string[]; documentId?: string | null } | null>(null);
+  const [exp, setExp] = useState<{ explanation: string; questions: string[]; documentId?: string | null; source?: { title: string; url: string } | null } | null>(null);
   const [expLoading, setExpLoading] = useState(false);
   useEffect(() => { setExp(null); }, [code]);
 
@@ -135,11 +135,19 @@ export default function MetricGraph() {
               </ul>
             </div>
           )}
-          <div className="mt-2.5 flex items-center justify-between">
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
             <span className="text-2xs text-ink-400">Grounded in your record · not medical advice</span>
-            {exp.documentId && (
-              <button onClick={() => showEvidence({ documentId: exp.documentId as any })} className="text-2xs font-medium text-accent hover:underline">View source</button>
-            )}
+            <div className="flex items-center gap-3">
+              {exp.source && (
+                <a href={exp.source.url} target="_blank" rel="noopener noreferrer" title={exp.source.title} className="flex items-center gap-1 text-2xs font-medium text-accent hover:underline">
+                  <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M5 3H3v6h6V7M7 3h2v2M9 3 5.5 6.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  {(() => { try { return new URL(exp.source.url).hostname.replace(/^www\./, ""); } catch { return "source"; } })()}
+                </a>
+              )}
+              {exp.documentId && (
+                <button onClick={() => showEvidence({ documentId: exp.documentId as any })} className="text-2xs font-medium text-accent hover:underline">View my record</button>
+              )}
+            </div>
           </div>
         </div>
       )}

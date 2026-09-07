@@ -48,18 +48,23 @@ export const explainMetric = action({
   handler: async (
     ctx,
     { patientId, code, shareToken },
-  ): Promise<{ label: string; explanation: string; questions: string[]; documentId: Id<"documents"> | null } | null> => {
+  ): Promise<{ label: string; explanation: string; questions: string[]; documentId: Id<"documents"> | null; source: { title: string; url: string } | null } | null> => {
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
     const m: any = await ctx.runQuery(internal.insights.metricData, { patientId, code, shareToken });
     if (!m) return null;
-    if (!apiKey) return { label: m.label, explanation: "Set OPENAI_API_KEY to enable explanations.", questions: [], documentId: m.latest.documentId };
+    if (!apiKey) return { label: m.label, explanation: "Set OPENAI_API_KEY to enable explanations.", questions: [], documentId: m.latest.documentId, source: null };
+
+    // Ground the explanation in a trusted public source (Firecrawl) when available.
+    const ref: any = await ctx.runAction(internal.firecrawl.referenceLookup, { topic: m.label, hint: "lab test" });
+    const source = ref && ref.source ? ref.source : null;
+    const grounding = ref && ref.summary ? `\n\nTRUSTED REFERENCE (from ${source?.url}): ${ref.summary}\nUse this reference for the general explanation; use the patient data for their specific numbers/trend.` : "";
 
     const system =
-      "You explain ONE lab/vital to a patient in plain, calm, non-alarming language. Use ONLY the provided data. " +
+      "You explain ONE lab/vital to a patient in plain, calm, non-alarming language. Use ONLY the provided data (and the trusted reference, if given). " +
       "Never diagnose, never prescribe, never say something is 'fine' or 'dangerous' definitively — describe and contextualize, and defer to a clinician. " +
       'Return STRICT JSON: {"explanation": string (2-4 short sentences, markdown ok: what it measures, what the reference range means, and what THIS person\'s trend shows), "questions": [string] (2-3 specific questions to ask their doctor)}.';
-    const user = `METRIC: ${JSON.stringify(m)}\n\nExplain ${m.label} for this person.`;
+    const user = `METRIC: ${JSON.stringify(m)}${grounding}\n\nExplain ${m.label} for this person.`;
     try {
       const parsed = await chat(apiKey, model, system, user);
       return {
@@ -67,9 +72,10 @@ export const explainMetric = action({
         explanation: String(parsed.explanation ?? "").trim() || "No explanation available.",
         questions: (Array.isArray(parsed.questions) ? parsed.questions : []).map((q: any) => String(q)).slice(0, 3),
         documentId: m.latest.documentId,
+        source,
       };
     } catch (e: any) {
-      return { label: m.label, explanation: `Couldn't generate an explanation (${String(e?.message ?? e).slice(0, 120)}).`, questions: [], documentId: m.latest.documentId };
+      return { label: m.label, explanation: `Couldn't generate an explanation (${String(e?.message ?? e).slice(0, 120)}).`, questions: [], documentId: m.latest.documentId, source };
     }
   },
 });

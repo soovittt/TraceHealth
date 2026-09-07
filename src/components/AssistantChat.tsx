@@ -29,6 +29,10 @@ function describeView(view: string, metricCode: string | null): string {
   }
 }
 
+function hostOf(u: string) {
+  try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return "source"; }
+}
+
 const SUGGESTIONS = [
   "Summarize my health in 5 bullet points.",
   "What's my biggest cardiovascular risk right now?",
@@ -217,6 +221,24 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
                     {m.steps && m.steps.length > 0 && <ReasoningTrace steps={m.steps} />}
                     <Markdown text={m.content} />
                     {m.charts?.map((code: string) => <ChatChart key={code} code={code} />)}
+                    {m.webSources && m.webSources.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-line-soft pt-2.5">
+                        <span className="text-2xs text-ink-400">Sources:</span>
+                        {m.webSources.map((w: any, i: number) => (
+                          <a
+                            key={i}
+                            href={w.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={w.title}
+                            className="flex items-center gap-1 rounded border border-line bg-canvas px-1.5 py-0.5 text-2xs text-accent hover:underline"
+                          >
+                            <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M5 3H3v6h6V7M7 3h2v2M9 3 5.5 6.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            {hostOf(w.url)}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                     {m.citations && m.citations.length > 0 && (
                       <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-line-soft pt-2.5">
                         {m.citations.map((c: any, i: number) => (

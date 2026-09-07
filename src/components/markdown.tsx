@@ -1,44 +1,110 @@
-// Minimal, safe Markdown renderer: headings, paragraphs, bullets, **bold**, `code`.
+// A small, clean Markdown renderer: headings, paragraphs, ordered & unordered
+// lists (with nesting), **bold**, and `code`. Tuned so AI answers read tight and
+// scannable, not like a run-on data dump.
+
+type Node = { indent: number; ordered: boolean; text: string; children: Node[] };
+
+const LIST_RE = /^(\s*)([-*]|\d+[.)])\s+(.*)$/;
+
 export function Markdown({ text }: { text: string }) {
-  const lines = text.split("\n");
+  const lines = text.replace(/\r/g, "").split("\n");
   const blocks: JSX.Element[] = [];
-  let list: string[] = [];
-  const flush = () => {
-    if (list.length) {
-      blocks.push(
-        <ul key={`ul${blocks.length}`} className="my-1.5 ml-1 space-y-1">
-          {list.map((li, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-ink-400" />
-              <span>{inline(li)}</span>
-            </li>
-          ))}
-        </ul>,
-      );
-      list = [];
-    }
-  };
-  for (const raw of lines) {
-    const line = raw.trimEnd();
+  let i = 0;
+  let key = 0;
+
+  while (i < lines.length) {
+    const line = lines[i].replace(/\s+$/, "");
+    if (!line.trim()) { i++; continue; }
+
+    // heading
     const h = line.match(/^(#{1,3})\s+(.*)$/);
     if (h) {
-      flush();
-      const level = h[1].length;
-      const cls = level === 1 ? "text-md font-semibold" : level === 2 ? "text-sm font-semibold" : "text-sm font-medium";
-      blocks.push(
-        <div key={`h${blocks.length}`} className={`mt-3 mb-1 text-ink-900 ${cls}`}>
-          {inline(h[2])}
-        </div>,
-      );
-    } else if (/^\s*[-*]\s+/.test(line)) {
-      list.push(line.replace(/^\s*[-*]\s+/, ""));
-    } else {
-      flush();
-      if (line.trim()) blocks.push(<p key={`p${blocks.length}`} className="my-1 leading-relaxed">{inline(line)}</p>);
+      const lvl = h[1].length;
+      const cls = lvl === 1 ? "text-[15px] font-semibold" : "text-sm font-semibold";
+      blocks.push(<div key={key++} className={`mb-1 mt-3 text-ink-900 ${cls}`}>{inline(h[2])}</div>);
+      i++;
+      continue;
     }
+
+    // list run (consecutive list lines, blanks between allowed)
+    if (LIST_RE.test(line)) {
+      const run: string[] = [];
+      while (i < lines.length) {
+        const l = lines[i];
+        if (LIST_RE.test(l)) { run.push(l); i++; continue; }
+        if (!l.trim() && i + 1 < lines.length && LIST_RE.test(lines[i + 1])) { i++; continue; }
+        break;
+      }
+      blocks.push(<div key={key++}>{renderList(run)}</div>);
+      continue;
+    }
+
+    // a whole line that's just a bold label → subheading
+    const boldOnly = line.match(/^\*\*(.+?)\*\*:?$/);
+    if (boldOnly) {
+      blocks.push(<div key={key++} className="mb-0.5 mt-2.5 text-sm font-semibold text-ink-900">{inline(boldOnly[1])}</div>);
+      i++;
+      continue;
+    }
+
+    blocks.push(<p key={key++} className="my-1.5 leading-relaxed">{inline(line)}</p>);
+    i++;
   }
-  flush();
+
   return <div className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{blocks}</div>;
+}
+
+function renderList(run: string[]): JSX.Element | null {
+  const items = run.map((l) => {
+    const m = l.match(LIST_RE)!;
+    const indent = Math.floor(m[1].replace(/\t/g, "  ").length / 2);
+    return { indent, ordered: /\d/.test(m[2]), text: m[3], children: [] as Node[] };
+  });
+  const [tree] = build(items, 0, Math.min(...items.map((x) => x.indent)));
+  return renderNodes(tree);
+}
+
+function build(items: Node[], start: number, level: number): [Node[], number] {
+  const nodes: Node[] = [];
+  let i = start;
+  while (i < items.length) {
+    const it = items[i];
+    if (it.indent < level) break;
+    if (it.indent > level) { i++; continue; }
+    const node: Node = { ...it, children: [] };
+    let j = i + 1;
+    if (j < items.length && items[j].indent > level) {
+      const [kids, next] = build(items, j, items[j].indent);
+      node.children = kids;
+      j = next;
+    }
+    nodes.push(node);
+    i = j;
+  }
+  return [nodes, i];
+}
+
+function renderNodes(nodes: Node[]): JSX.Element | null {
+  if (!nodes.length) return null;
+  const ordered = nodes[0].ordered;
+  const Tag: any = ordered ? "ol" : "ul";
+  return (
+    <Tag className="my-1.5 space-y-1">
+      {nodes.map((n, i) => (
+        <li key={i} className="flex gap-2">
+          {ordered ? (
+            <span className="mono mt-px w-4 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span>
+          ) : (
+            <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-400" />
+          )}
+          <span className="min-w-0 flex-1">
+            {inline(n.text)}
+            {n.children.length ? renderNodes(n.children) : null}
+          </span>
+        </li>
+      ))}
+    </Tag>
+  );
 }
 
 function inline(s: string): (string | JSX.Element)[] {
