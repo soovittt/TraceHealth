@@ -17,6 +17,7 @@ import Integrations from "./Integrations";
 import Reports from "./Reports";
 import ImportScreen from "./ImportScreen";
 import NeedsAttention from "./NeedsAttention";
+import AssistantChat from "./AssistantChat";
 import DoctorView from "./DoctorView";
 
 const NAV: { key: any; label: string; hint: string; icon: string }[] = [
@@ -209,6 +210,11 @@ export default function AppShell() {
               {view === "integrations" && <Integrations />}
               {view === "import" && <ImportScreen />}
               {view === "signals" && <NeedsAttention />}
+              {view === "chat" && (
+                <div className="mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-lg border border-line bg-surface">
+                  <AssistantChat />
+                </div>
+              )}
               {view === "reports" && <Reports />}
             </>
           )}
