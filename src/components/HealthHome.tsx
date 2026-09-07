@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { Sparkline } from "./charts";
 import { fmtDate, fmtNum, year } from "../lib/format";
+import SignalsPanel from "./SignalsPanel";
 
 // An AI entry point that opens the assistant dock and sends the question.
 function AskBar({ placeholder }: { placeholder?: string }) {
@@ -85,6 +86,11 @@ export default function HealthHome() {
 
       <div className="mt-5">
         <AskBar />
+      </div>
+
+      {/* the app reads your record and tells you what to look at */}
+      <div className="mt-5">
+        <SignalsPanel />
       </div>
 
       {/* metric strip */}
