@@ -7,6 +7,12 @@ import { metaFor } from "./metrics";
 // capability to the product = adding a tool here.
 
 const YEAR = 365 * 24 * 60 * 60 * 1000;
+const MONTH = 30 * 24 * 60 * 60 * 1000;
+// Rough guideline recheck cadences (months) for the labs/vitals we track.
+const CADENCE: Record<string, number> = {
+  LDL: 60, CHOL_TOTAL: 60, HDL: 60, TRIG: 60, HBA1C: 36, GLUCOSE: 36,
+  BP_SYS: 12, BP_DIA: 12, EGFR: 12, CREATININE: 12, VITD: 24,
+};
 
 export type ToolContext = ReturnType<typeof buildToolContext>;
 
@@ -56,12 +62,14 @@ export function buildToolContext(s: any, signals: any[], iso: (t?: number) => st
     status: m.status, started: iso(m.startDate), startNum: m.startDate ?? null, documentId: m.documentId,
   }));
   const allergies = s.allergies.map((a: any) => ({ substance: a.substance, reaction: a.reaction, documentId: a.documentId }));
-  const encounters = [...s.encs].sort((a: any, b: any) => b.date - a.date).map((e: any) => ({ title: e.title, kind: e.kind, org: e.org, date: iso(e.date), documentId: e.documentId }));
+  const encounters = [...s.encs].sort((a: any, b: any) => b.date - a.date).map((e: any) => ({ title: e.title, kind: e.kind, org: e.org, date: iso(e.date), dateNum: e.date, documentId: e.documentId }));
+  const missing = (s.missing ?? []).map((m: any) => ({ label: m.label, org: m.org, date: iso(m.date), status: m.status, documentId: m.referencedInDocumentId }));
+  const conflicts = (s.conflicts ?? []).map((c: any) => ({ type: c.kind, label: c.label, status: c.status, options: (c.options ?? []).map((o: any) => `${o.source}: ${o.value}`) }));
   const docMap = new Map<string, any>(s.docs.map((d: any) => [String(d._id), d]));
 
   return {
     patient: s.patient ? { name: s.patient.name, age: s.patient.age, sex: s.patient.sex } : null,
-    metrics, metricByCode, conditions, meds, allergies, encounters, signals, docMap,
+    metrics, metricByCode, conditions, meds, allergies, encounters, missing, conflicts, signals, docMap,
     sources: s.docs.map((d: any) => ({ documentId: d._id, org: d.org, date: iso(d.receivedAt) })),
     iso,
   };
@@ -86,6 +94,11 @@ export function toolSchemas(ctx: ToolContext) {
     fn("list_conditions", "List diagnosed conditions with status and date."),
     fn("list_allergies", "List recorded allergies and reactions."),
     fn("search_records", "Search the whole record (labs, meds, conditions, visits) by keyword.", { query: { type: "string" } }, ["query"]),
+    fn("screening_status", "Which tracked labs/vitals are overdue for a recheck vs typical guideline cadence."),
+    fn("find_open_loops", "Abnormal results that were never rechecked, or monitoring that's overdue for a condition — dropped threads."),
+    fn("recent_activity", "What's new in the record recently: labs and visits within the last N months (default 6).", { months: { type: "number" } }),
+    fn("list_missing_records", "Records referenced in the notes but not present in the record (e.g. an imaging study mentioned but not imported)."),
+    fn("list_conflicts", "Cross-source conflicts where providers disagree (e.g. a medication dose recorded two ways)."),
     fn("data_completeness", "How complete the record is: sources connected, data classes present, and gaps."),
   ];
 }
@@ -184,6 +197,41 @@ export function executeTool(name: string, args: any, ctx: ToolContext): ToolResu
       for (const m of ctx.metrics) if (m.label.toLowerCase().includes(q)) hits.push({ type: "lab", label: m.label, code: m.code });
       return { result: hits.slice(0, 12), docs: hits.map((h) => String(h.documentId)).filter((x) => x !== "undefined"), codes: hits.filter((h) => h.code).map((h) => h.code), label: `Searched for “${args.query}”`, detail: `${hits.length} match${hits.length === 1 ? "" : "es"}` };
     }
+
+    case "screening_status": {
+      const now = Date.now();
+      const rows = ctx.metrics
+        .filter((m: any) => CADENCE[m.code])
+        .map((m: any) => {
+          const monthsOld = (now - m.raw[m.raw.length - 1].date) / MONTH;
+          return { metric: m.code, label: m.label, lastDone: m.latest.date, monthsAgo: Math.round(monthsOld), cadenceMonths: CADENCE[m.code], overdue: monthsOld > CADENCE[m.code] };
+        });
+      return { result: { note: "General guideline cadences — confirm with a clinician.", items: rows.filter((r: any) => r.overdue), upToDate: rows.filter((r: any) => !r.overdue).map((r: any) => r.label) }, docs: [], codes: rows.filter((r: any) => r.overdue).map((r: any) => r.metric), label: "Checked screening cadence", detail: `${rows.filter((r: any) => r.overdue).length} overdue` };
+    }
+
+    case "find_open_loops": {
+      const now = Date.now();
+      const loops = ctx.metrics
+        .filter((m: any) => m.status !== "in range" && CADENCE[m.code] && (now - m.raw[m.raw.length - 1].date) / MONTH > CADENCE[m.code] / 2)
+        .map((m: any) => ({ metric: m.code, label: m.label, lastValue: m.latest.value, unit: m.unit, status: m.status, monthsAgo: Math.round((now - m.raw[m.raw.length - 1].date) / MONTH), documentId: m.latest.documentId }));
+      return { result: loops, docs: loops.map((l: any) => String(l.documentId)), codes: loops.map((l: any) => l.metric), label: "Looked for dropped follow-ups", detail: `${loops.length} open loop${loops.length === 1 ? "" : "s"}` };
+    }
+
+    case "recent_activity": {
+      const months = typeof args.months === "number" && args.months > 0 ? args.months : 6;
+      const cutoff = Date.now() - months * MONTH;
+      const labs: any[] = [];
+      for (const m of ctx.metrics) for (const r of m.raw) if (r.date >= cutoff) labs.push({ type: "lab", label: m.label, value: r.value, unit: m.unit, date: ctx.iso(r.date), dateNum: r.date, documentId: r.documentId });
+      const visits = ctx.encounters.filter((e: any) => e.dateNum >= cutoff).map((e: any) => ({ type: "visit", label: e.title, org: e.org, date: e.date, dateNum: e.dateNum, documentId: e.documentId }));
+      const items = [...labs, ...visits].sort((a, b) => b.dateNum - a.dateNum).slice(0, 20).map(({ dateNum, ...x }) => x);
+      return { result: { sinceMonths: months, items }, docs: items.map((x: any) => String(x.documentId)).filter((x) => x !== "undefined"), codes: [], label: `Reviewed the last ${months} months`, detail: `${items.length} item${items.length === 1 ? "" : "s"}` };
+    }
+
+    case "list_missing_records":
+      return { result: ctx.missing, docs: ctx.missing.map((m: any) => String(m.documentId)), codes: [], label: "Checked for missing records", detail: `${ctx.missing.length}` };
+
+    case "list_conflicts":
+      return { result: ctx.conflicts, docs: [], codes: [], label: "Checked for record conflicts", detail: `${ctx.conflicts.length}` };
 
     case "data_completeness": {
       const orgs = new Set(ctx.sources.map((x: any) => x.org));
