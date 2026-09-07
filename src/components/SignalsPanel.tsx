@@ -10,11 +10,14 @@ const TONE: Record<string, { dot: string; text: string }> = {
 
 // #1 Needs Attention Feed + #63 completeness — the app reads the whole record
 // and hands you the short list that matters. Deterministic, grounded, cited.
-export default function SignalsPanel() {
-  const { patientId, openMetric, showEvidence } = useStore();
+export default function SignalsPanel({ limit }: { limit?: number }) {
+  const { patientId, openMetric, showEvidence, go } = useStore();
   const signals = useQuery(api.signals.getSignals, patientId ? { patientId } : "skip");
   const health = useQuery(api.signals.dataHealth, patientId ? { patientId } : "skip");
   if (signals === undefined) return null;
+
+  const shown = limit ? signals.slice(0, limit) : signals;
+  const moreCount = signals.length - shown.length;
 
   return (
     <section className="card overflow-hidden">
@@ -26,12 +29,17 @@ export default function SignalsPanel() {
           <h2 className="text-sm font-semibold text-ink-900">Needs your attention</h2>
           {signals.length > 0 && <span className="mono text-2xs text-ink-400">{signals.length}</span>}
         </div>
-        {health && (
-          <span className="flex items-center gap-1.5 text-2xs text-ink-400" title={health.gaps.join(" · ") || "Looks complete"}>
-            <span className={`h-1.5 w-1.5 rounded-full ${health.score >= 75 ? "bg-good" : health.score >= 50 ? "bg-warn" : "bg-bad"}`} />
-            Record {health.score}% complete
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {health && (
+            <span className="hidden items-center gap-1.5 text-2xs text-ink-400 sm:flex" title={health.gaps.join(" · ") || "Looks complete"}>
+              <span className={`h-1.5 w-1.5 rounded-full ${health.score >= 75 ? "bg-good" : health.score >= 50 ? "bg-warn" : "bg-bad"}`} />
+              Record {health.score}% complete
+            </span>
+          )}
+          {signals.length > 0 && (
+            <button className="text-xs font-medium text-ink-500 hover:text-ink-900" onClick={() => go("signals")}>See all →</button>
+          )}
+        </div>
       </div>
 
       {signals.length === 0 ? (
@@ -43,15 +51,15 @@ export default function SignalsPanel() {
         </div>
       ) : (
         <div className="divide-y divide-line-soft">
-          {signals.map((s: any) => {
+          {shown.map((s: any) => {
             const tone = TONE[s.severity] ?? TONE.info;
             const act = () => (s.code ? openMetric(s.code) : s.documentId ? showEvidence({ documentId: s.documentId, page: s.page }) : undefined);
             return (
-              <button key={s.id} onClick={act} className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-canvas">
+              <button key={s.id} onClick={act} className="flex w-full items-start gap-3 px-4 py-2 text-left transition-colors hover:bg-canvas">
                 <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-medium text-ink-900">{s.title}</span>
-                  <span className="mt-0.5 block text-xs text-ink-500">{s.detail}</span>
+                  <span className="mt-0.5 block truncate text-xs text-ink-500">{s.detail}</span>
                 </span>
                 {s.documentId && (
                   <svg viewBox="0 0 12 12" className="mt-1 h-3 w-3 shrink-0 text-ink-300" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -61,6 +69,14 @@ export default function SignalsPanel() {
               </button>
             );
           })}
+          {moreCount > 0 && (
+            <button
+              onClick={() => go("signals")}
+              className="flex w-full items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-accent hover:bg-canvas"
+            >
+              +{moreCount} more · see all action items →
+            </button>
+          )}
         </div>
       )}
     </section>

@@ -16,6 +16,7 @@ import Conflicts from "./Conflicts";
 import Integrations from "./Integrations";
 import Reports from "./Reports";
 import ImportScreen from "./ImportScreen";
+import NeedsAttention from "./NeedsAttention";
 import DoctorView from "./DoctorView";
 
 const NAV: { key: any; label: string; hint: string; icon: string }[] = [
@@ -207,6 +208,7 @@ export default function AppShell() {
               {view === "conflicts" && <Conflicts />}
               {view === "integrations" && <Integrations />}
               {view === "import" && <ImportScreen />}
+              {view === "signals" && <NeedsAttention />}
               {view === "reports" && <Reports />}
             </>
           )}
