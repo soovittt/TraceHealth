@@ -135,6 +135,33 @@ export const insertExtracted = internalMutation({
 
 const CODES = Object.keys(METRIC_META).join(", ");
 
+const EXTRACT_SYSTEM =
+  "You extract structured medical events from a health record. " +
+  "Return ONLY strict JSON. Dates must be epoch milliseconds (UTC). " +
+  `For observations, map the test to one of these canonical codes when possible: ${CODES}. ` +
+  "Otherwise invent an UPPER_SNAKE code. Normalize medication names (e.g. Lipitor -> atorvastatin) " +
+  "into normalizedName (lowercase generic). Infer org from letterhead. " +
+  "Schema: {\"org\":string,\"observations\":[{\"code\":string,\"label\":string,\"value\":number,\"unit\":string,\"date\":number}]," +
+  "\"medications\":[{\"name\":string,\"normalizedName\":string,\"dose\":number|null,\"doseUnit\":string|null,\"startDate\":number|null}]," +
+  "\"conditions\":[{\"name\":string,\"normalizedName\":string,\"diagnosedDate\":number|null}]," +
+  "\"encounters\":[{\"kind\":string,\"title\":string,\"date\":number,\"summary\":string|null}]," +
+  "\"allergies\":[{\"substance\":string,\"reaction\":string|null}]}";
+
+// Shared sanitizer for AI-extracted records (from text OR an image).
+function sanitizeExtract(parsed: any) {
+  const clean = (arr: any) => (Array.isArray(arr) ? arr : []);
+  return {
+    org: String(parsed?.org ?? "Uploaded record"),
+    observations: clean(parsed?.observations)
+      .filter((o: any) => typeof o?.value === "number" && typeof o?.date === "number")
+      .map((o: any) => ({ code: String(o.code ?? "OTHER").toUpperCase(), label: String(o.label ?? o.code ?? "Measurement"), value: Number(o.value), unit: String(o.unit ?? ""), date: Number(o.date) })),
+    medications: clean(parsed?.medications).map((m: any) => ({ name: String(m.name ?? "Medication"), normalizedName: String(m.normalizedName ?? m.name ?? "").toLowerCase(), dose: typeof m.dose === "number" ? m.dose : undefined, doseUnit: m.doseUnit ? String(m.doseUnit) : undefined, startDate: typeof m.startDate === "number" ? m.startDate : undefined })),
+    conditions: clean(parsed?.conditions).map((c: any) => ({ name: String(c.name ?? "Condition"), normalizedName: String(c.normalizedName ?? c.name ?? "").toLowerCase(), diagnosedDate: typeof c.diagnosedDate === "number" ? c.diagnosedDate : undefined })),
+    encounters: clean(parsed?.encounters).filter((e: any) => typeof e?.date === "number").map((e: any) => ({ kind: String(e.kind ?? "Visit"), title: String(e.title ?? "Encounter"), date: Number(e.date), summary: e.summary ? String(e.summary) : undefined })),
+    allergies: clean(parsed?.allergies).filter((a: any) => a?.substance).map((a: any) => ({ substance: String(a.substance), reaction: a.reaction ? String(a.reaction) : undefined })),
+  };
+}
+
 // Extract structured medical events from raw record text using OpenAI.
 // OpenAI is an extractor here — never the source of truth.
 export const extractAndImport = action({
@@ -155,90 +182,70 @@ export const extractAndImport = action({
       );
     }
 
-    const system =
-      "You extract structured medical events from a raw health record. " +
-      "Return ONLY strict JSON. Dates must be epoch milliseconds (UTC). " +
-      `For observations, map the test to one of these canonical codes when possible: ${CODES}. ` +
-      "Otherwise invent an UPPER_SNAKE code. Normalize medication names (e.g. Lipitor -> atorvastatin) " +
-      "into normalizedName (lowercase generic). Infer org from letterhead. " +
-      "Schema: {\"org\":string,\"observations\":[{\"code\":string,\"label\":string,\"value\":number,\"unit\":string,\"date\":number}]," +
-      "\"medications\":[{\"name\":string,\"normalizedName\":string,\"dose\":number|null,\"doseUnit\":string|null,\"startDate\":number|null}]," +
-      "\"conditions\":[{\"name\":string,\"normalizedName\":string,\"diagnosedDate\":number|null}]," +
-      "\"encounters\":[{\"kind\":string,\"title\":string,\"date\":number,\"summary\":string|null}]," +
-      "\"allergies\":[{\"substance\":string,\"reaction\":string|null}]}";
-
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         temperature: 0,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: system },
+          { role: "system", content: EXTRACT_SYSTEM },
           { role: "user", content: text.slice(0, 12000) },
         ],
       }),
     });
-    if (!res.ok) {
-      throw new Error(`OpenAI error ${res.status}: ${await res.text()}`);
-    }
+    if (!res.ok) throw new Error(`OpenAI error ${res.status}: ${await res.text()}`);
     const json = await res.json();
     let parsed: any = {};
-    try {
-      parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}");
-    } catch {
-      parsed = {};
-    }
+    try { parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}"); } catch { parsed = {}; }
 
-    const clean = (arr: any) => (Array.isArray(arr) ? arr : []);
-    const observations = clean(parsed.observations)
-      .filter((o: any) => typeof o?.value === "number" && typeof o?.date === "number")
-      .map((o: any) => ({
-        code: String(o.code ?? "OTHER").toUpperCase(),
-        label: String(o.label ?? o.code ?? "Measurement"),
-        value: Number(o.value),
-        unit: String(o.unit ?? ""),
-        date: Number(o.date),
-      }));
-    const medications = clean(parsed.medications).map((m: any) => ({
-      name: String(m.name ?? "Medication"),
-      normalizedName: String(m.normalizedName ?? m.name ?? "").toLowerCase(),
-      dose: typeof m.dose === "number" ? m.dose : undefined,
-      doseUnit: m.doseUnit ? String(m.doseUnit) : undefined,
-      startDate: typeof m.startDate === "number" ? m.startDate : undefined,
-    }));
-    const conditions = clean(parsed.conditions).map((c: any) => ({
-      name: String(c.name ?? "Condition"),
-      normalizedName: String(c.normalizedName ?? c.name ?? "").toLowerCase(),
-      diagnosedDate: typeof c.diagnosedDate === "number" ? c.diagnosedDate : undefined,
-    }));
-    const encounters = clean(parsed.encounters)
-      .filter((e: any) => typeof e?.date === "number")
-      .map((e: any) => ({
-        kind: String(e.kind ?? "Visit"),
-        title: String(e.title ?? "Encounter"),
-        date: Number(e.date),
-        summary: e.summary ? String(e.summary) : undefined,
-      }));
-    const allergies = clean(parsed.allergies)
-      .filter((a: any) => a?.substance)
-      .map((a: any) => ({ substance: String(a.substance), reaction: a.reaction ? String(a.reaction) : undefined }));
-
+    const s = sanitizeExtract(parsed);
     const result = await ctx.runMutation(internal.ingest.insertExtracted, {
-      patientId,
-      filename,
-      org: String(parsed.org ?? "Uploaded record"),
-      excerpt: text,
-      storageId,
-      observations,
-      medications,
-      conditions,
-      encounters,
-      allergies,
+      patientId, filename, org: s.org, excerpt: text, storageId,
+      observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,
+    });
+    return result.counts;
+  },
+});
+
+// #52 — Snap-a-Lab: extract records from a PHOTO or scanned page via GPT-4o vision.
+export const extractFromImage = action({
+  args: { patientId: v.id("patients"), filename: v.string(), storageId: v.id("_storage") },
+  handler: async (
+    ctx,
+    { patientId, filename, storageId },
+  ): Promise<{ observations: number; medications: number; conditions: number; encounters: number; allergies: number }> => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY is not set. Run: npx convex env set OPENAI_API_KEY sk-...");
+    const url = await ctx.storage.getUrl(storageId);
+    if (!url) throw new Error("Uploaded image not found.");
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: EXTRACT_SYSTEM + " Read all values visible in the image (a photo or scan of a lab report, after-visit summary, or medication list). If a date is missing, use the document date." },
+          { role: "user", content: [
+            { type: "text", text: "Extract every medical record visible in this image as JSON." },
+            { type: "image_url", image_url: { url } },
+          ] },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI vision error ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const json = await res.json();
+    let parsed: any = {};
+    try { parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}"); } catch { parsed = {}; }
+
+    const s = sanitizeExtract(parsed);
+    const result = await ctx.runMutation(internal.ingest.insertExtracted, {
+      patientId, filename, org: s.org, excerpt: `Extracted from image: ${filename}`, storageId,
+      observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,
     });
     return result.counts;
   },
