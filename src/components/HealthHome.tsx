@@ -68,13 +68,14 @@ export default function HealthHome() {
   })();
 
   return (
-    <div className="mx-auto flex h-full max-w-6xl flex-col animate-fade-in">
+    <div className="flex h-full w-full flex-col animate-fade-in">
       {/* compact header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-ink-900">{patient.name}</h1>
           <div className="mt-0.5 flex items-center gap-2 text-2xs text-ink-500">
-            <span>{patient.age} yr</span><Sep /><span className="mono">{patient.recordsFrom}</span><Sep /><span>{patient.orgCount} orgs</span>
+            <span>{patient.age} yr</span><Sep /><span className="mono">{patient.recordsFrom}</span>
+            {patient.orgCount ? <><Sep /><span>{patient.orgCount} {patient.orgCount === 1 ? "org" : "orgs"}</span></> : null}
           </div>
         </div>
         {openConflicts.length > 0 && (
