@@ -29,34 +29,38 @@ export default function EvidencePanel() {
           <div className="p-5 text-sm text-ink-400">Source not found.</div>
         ) : (
           <div className="flex-1 overflow-auto p-4">
-            <div className="text-md font-semibold text-ink-900">{doc.org}</div>
-            <div className="mono mt-0.5 text-xs text-ink-400">{fmtDate(doc.receivedAt)}</div>
-
-            <dl className="mt-4 grid grid-cols-3 gap-2">
-              <Meta k="File" v={doc.filename} mono />
-              <Meta k="Page" v={String(evidence.page ?? 1)} mono />
-              <Meta k="Via" v={doc.receivedVia} />
-            </dl>
-
-            <div className="eyebrow mt-5">Original document</div>
-            <div className="mt-2 overflow-hidden rounded-md border border-line">
-              <div className="flex items-center gap-2 border-b border-line bg-canvas px-3 py-2 text-2xs text-ink-400">
-                <span className="rounded-sm border border-line bg-surface px-1 py-px font-mono text-2xs text-ink-500">PDF</span>
-                <span className="mono truncate">{doc.filename} · p.{evidence.page ?? 1}</span>
+            {/* source header — real file type, org, date, page */}
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-line bg-canvas text-2xs font-semibold text-ink-500">
+                {fileKind(doc)}
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-ink-900">{doc.org}</div>
+                <div className="mono mt-0.5 text-2xs text-ink-400">
+                  {fmtDate(doc.receivedAt)} · page {evidence.page ?? 1} · via {doc.receivedVia}
+                </div>
               </div>
-              <pre className="whitespace-pre-wrap px-3 py-3 font-mono text-xs leading-relaxed text-ink-700">
-                {doc.excerpt ?? "No extracted text available."}
+            </div>
+
+            <div className="mono mt-2.5 truncate rounded-md border border-line bg-canvas px-2.5 py-1.5 text-2xs text-ink-500" title={doc.filename}>
+              {doc.filename}
+            </div>
+
+            <div className="eyebrow mt-4">Source content</div>
+            <div className="mt-1.5 max-h-[52vh] overflow-auto rounded-md border border-line bg-canvas p-3">
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-ink-700">
+                {doc.excerpt?.trim() || "No extracted text available for this record."}
               </pre>
             </div>
 
             {doc.url && (
               <a href={doc.url} target="_blank" rel="noreferrer" className="btn-secondary mt-3 w-full">
-                Open original file
+                Open original file ↗
               </a>
             )}
 
-            <p className="mt-5 text-xs leading-relaxed text-ink-400">
-              Every value in TraceHealth points back to a source record — not to a model’s opinion.
+            <p className="mt-4 text-2xs leading-relaxed text-ink-400">
+              Every value in TraceHealth traces back to a source record like this — not a model’s opinion.
             </p>
           </div>
         )}
@@ -65,11 +69,14 @@ export default function EvidencePanel() {
   );
 }
 
-function Meta({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
-  return (
-    <div className="rounded-md border border-line px-2.5 py-1.5">
-      <dt className="text-2xs uppercase tracking-wide text-ink-400">{k}</dt>
-      <dd className={`truncate text-xs text-ink-800 ${mono ? "mono" : ""}`}>{v}</dd>
-    </div>
-  );
+// The real file type — never mislabel a FHIR/JSON record as "PDF".
+function fileKind(doc: any): string {
+  const f = (doc.filename ?? "").toLowerCase();
+  if (doc.kind === "fhir" || doc.receivedVia === "fhir" || f.endsWith(".fhir") || (f.endsWith(".json") && f.includes("fhir"))) return "FHIR";
+  if (f.endsWith(".pdf")) return "PDF";
+  if (f.endsWith(".csv")) return "CSV";
+  if (f.endsWith(".json")) return "JSON";
+  if (f.endsWith(".xml")) return "XML";
+  if (doc.kind === "manual") return "NOTE";
+  return "TEXT";
 }

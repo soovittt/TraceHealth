@@ -50,7 +50,7 @@ export default function Timeline() {
   }, [status, loadMore]);
 
   if (status === "LoadingFirstPage") {
-    return <div className="mx-auto max-w-3xl animate-pulse space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-14 rounded-lg bg-line-soft" />)}</div>;
+    return <div className="max-w-4xl animate-pulse space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-14 rounded-lg bg-line-soft" />)}</div>;
   }
 
   // Group the loaded rows by month (already sorted newest-first by the query).
@@ -67,7 +67,7 @@ export default function Timeline() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in">
+    <div className="max-w-4xl animate-fade-in">
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900">Timeline</h1>
