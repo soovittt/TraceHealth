@@ -207,6 +207,26 @@ export default defineSchema({
     fhirStatus: v.optional(v.string()), // "written" | "error"
   }).index("by_patient", ["patientId"]),
 
+  // Denormalized, dated feed of every record type — one row per timeline item.
+  // Kept in sync from the source tables on ingest, so the timeline is a single
+  // indexed query with real cursor-based pagination (Convex .paginate()).
+  events: defineTable({
+    patientId: v.id("patients"),
+    type: v.string(), // "lab" | "medication" | "condition" | "encounter" | "allergy"
+    date: v.number(),
+    title: v.string(),
+    subtitle: v.optional(v.string()),
+    code: v.optional(v.string()), // metric code, for labs
+    value: v.optional(v.number()),
+    unit: v.optional(v.string()),
+    abnormal: v.optional(v.boolean()),
+    documentId: v.optional(v.id("documents")),
+    page: v.optional(v.number()),
+    sourceId: v.string(), // _id of the underlying observation/med/etc.
+  })
+    .index("by_patient_date", ["patientId", "date"])
+    .index("by_patient_type_date", ["patientId", "type", "date"]),
+
   // Each distinct AI chat thread.
   conversations: defineTable({
     patientId: v.id("patients"),

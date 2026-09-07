@@ -2,6 +2,7 @@ import { mutation, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { rebuildEvents } from "./events";
 import {
   DEMO_PATIENT,
   DEMO_DOCS,
@@ -216,6 +217,7 @@ export const loadDemo = mutation({
       });
     }
 
+    await rebuildEvents(ctx, patientId);
     return { patientId };
   },
 });

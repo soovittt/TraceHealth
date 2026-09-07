@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useRef, useState } from "react";
+import { usePaginatedQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { METRIC_META } from "../../convex/metrics";
 import { useStore } from "../lib/store";
 import { fmtMonthYear, fmtNum } from "../lib/format";
 
@@ -13,74 +12,50 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "medication", label: "Medications" },
   { key: "condition", label: "Conditions" },
 ];
-
-type Item = {
-  id: string;
-  type: "lab" | "encounter" | "medication" | "condition";
-  date: number;
-  title: string;
-  detail?: string;
-  value?: number;
-  unit?: string;
-  code?: string;
-  abnormal?: boolean;
-  documentId?: any;
-  page?: number;
+const FILTER_TYPE: Record<Filter, string | undefined> = {
+  all: undefined,
+  labs: "lab",
+  visit: "encounter",
+  medication: "medication",
+  condition: "condition",
 };
 
 export default function Timeline() {
   const { patientId, showEvidence, openMetric } = useStore();
-  const events = useQuery(api.health.getTimeline, patientId ? { patientId } : "skip");
-  const obs = useQuery(api.health.listObservations, patientId ? { patientId } : "skip");
   const [filter, setFilter] = useState<Filter>("all");
 
-  if (!events || !obs)
+  // Real Convex cursor pagination over the denormalized events feed.
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.events.pagedTimeline,
+    patientId ? { patientId, type: FILTER_TYPE[filter] } : "skip",
+    { initialNumItems: 40 },
+  );
+
+  // Backfill the feed once for records that predate the events table.
+  const ensure = useMutation(api.events.ensureEvents);
+  useEffect(() => {
+    if (patientId) ensure({ patientId }).catch(() => {});
+  }, [patientId, ensure]);
+
+  // Infinite scroll — load the next page when the sentinel enters view.
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && status === "CanLoadMore") loadMore(40);
+    }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [status, loadMore]);
+
+  if (status === "LoadingFirstPage") {
     return <div className="mx-auto max-w-3xl animate-pulse space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-14 rounded-lg bg-line-soft" />)}</div>;
-
-  // One unified, dated feed from every record type.
-  const items: Item[] = [];
-  for (const e of events) {
-    items.push({
-      id: e.id,
-      type: e.type as Item["type"],
-      date: e.date,
-      title: cleanTitle(e.type, e.title),
-      detail: e.subtitle,
-      documentId: e.documentId,
-      page: e.page,
-    });
-  }
-  for (const o of obs) {
-    const meta = METRIC_META[o.code];
-    const abnormal =
-      (meta?.refHigh != null && o.value > meta.refHigh) || (meta?.refLow != null && o.value < meta.refLow);
-    items.push({
-      id: o._id,
-      type: "lab",
-      date: o.date,
-      title: o.label,
-      value: o.value,
-      unit: o.unit,
-      code: o.code,
-      abnormal,
-      documentId: o.documentId,
-      page: o.page,
-    });
   }
 
-  const typeForFilter: Record<Filter, Item["type"] | null> = {
-    all: null,
-    labs: "lab",
-    visit: "encounter",
-    medication: "medication",
-    condition: "condition",
-  };
-  const want = typeForFilter[filter];
-  const shown = items.filter((it) => !want || it.type === want).sort((a, b) => b.date - a.date);
-
-  // Group by month, newest first.
-  const groups: { key: string; label: string; items: Item[] }[] = [];
-  for (const it of shown) {
+  // Group the loaded rows by month (already sorted newest-first by the query).
+  const groups: { key: string; label: string; items: any[] }[] = [];
+  for (const it of results) {
     const d = new Date(it.date);
     const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
     let g = groups[groups.length - 1];
@@ -96,7 +71,10 @@ export default function Timeline() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900">Timeline</h1>
-          <p className="mt-1 text-sm text-ink-500">{shown.length} records, newest first — every source on one thread.</p>
+          <p className="mt-1 text-sm text-ink-500">
+            {results.length}
+            {status !== "Exhausted" ? "+" : ""} records, newest first — every source on one thread.
+          </p>
         </div>
         <div className="flex gap-1 rounded-md border border-line bg-surface p-0.5">
           {FILTERS.map((f) => (
@@ -120,20 +98,30 @@ export default function Timeline() {
             </div>
             <div className="card divide-y divide-line-soft">
               {g.items.map((it) => (
-                <Row key={it.id} it={it} onEvidence={showEvidence} onMetric={openMetric} />
+                <Row key={it._id} it={it} onEvidence={showEvidence} onMetric={openMetric} />
               ))}
             </div>
           </section>
         ))}
-        {shown.length === 0 && <div className="card p-6 text-center text-sm text-ink-400">No {filter} records.</div>}
+
+        {results.length === 0 && <div className="card p-6 text-center text-sm text-ink-400">No {filter === "all" ? "" : filter} records yet.</div>}
+
+        {/* infinite-scroll sentinel + status */}
+        <div ref={sentinel} />
+        {status === "LoadingMore" && <div className="py-3 text-center text-xs text-ink-400">Loading more…</div>}
+        {status === "CanLoadMore" && (
+          <button onClick={() => loadMore(40)} className="mx-auto block rounded-md border border-line px-3 py-1.5 text-xs text-ink-600 hover:bg-canvas">Load more</button>
+        )}
+        {status === "Exhausted" && results.length > 0 && <div className="py-3 text-center text-2xs text-ink-400">End of record</div>}
       </div>
     </div>
   );
 }
 
-function Row({ it, onEvidence, onMetric }: { it: Item; onEvidence: (e: any) => void; onMetric: (c: string) => void }) {
+function Row({ it, onEvidence, onMetric }: { it: any; onEvidence: (e: any) => void; onMetric: (c: string) => void }) {
   const day = new Date(it.date).getUTCDate();
   const isLab = it.type === "lab";
+  const title = it.type === "encounter" ? cleanTitle(it.title) : it.title;
   return (
     <button
       onClick={() => (isLab && it.code ? onMetric(it.code) : it.documentId && onEvidence({ documentId: it.documentId, page: it.page }))}
@@ -141,13 +129,13 @@ function Row({ it, onEvidence, onMetric }: { it: Item; onEvidence: (e: any) => v
     >
       <span className="mono w-6 shrink-0 text-right text-sm text-ink-400">{day}</span>
       <TypeBadge type={it.type} />
-      <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{it.title}</span>
+      <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{title}</span>
       {isLab ? (
         <span className={`mono shrink-0 text-sm font-medium ${it.abnormal ? "text-bad" : "text-ink-900"}`}>
-          {fmtNum(it.value!)} <span className="text-2xs font-normal text-ink-400">{it.unit}</span>
+          {fmtNum(it.value)} <span className="text-2xs font-normal text-ink-400">{it.unit}</span>
         </span>
       ) : (
-        it.detail && <span className="shrink-0 truncate text-2xs text-ink-400">{it.detail}</span>
+        it.subtitle && <span className="shrink-0 truncate text-2xs text-ink-400">{it.subtitle}</span>
       )}
     </button>
   );
@@ -159,14 +147,14 @@ function TypeBadge({ type }: { type: string }) {
     encounter: { t: "Visit", c: "border-line text-ink-500" },
     medication: { t: "Rx", c: "border-good/30 text-good-ink" },
     condition: { t: "Dx", c: "border-warn-line text-warn" },
+    allergy: { t: "Alg", c: "border-bad/30 text-bad" },
   };
   const m = map[type] ?? { t: "•", c: "border-line text-ink-500" };
   return <span className={`tag shrink-0 ${m.c}`}>{m.t}</span>;
 }
 
 // Turn generic FHIR encounter titles into short human labels.
-function cleanTitle(type: string, title: string): string {
-  if (type !== "encounter") return title;
+function cleanTitle(title: string): string {
   let t = title
     .replace(/\s*\((procedure|finding|disorder|situation|regime\/therapy)\)\s*/gi, "")
     .replace(/^encounter\s+for\s+/i, "")
@@ -175,7 +163,6 @@ function cleanTitle(type: string, title: string): string {
   t = t.charAt(0).toUpperCase() + t.slice(1);
   const map: Record<string, string> = {
     "Check up": "Check-up",
-    "Check up (procedure)": "Check-up",
     "Follow-up visit": "Follow-up",
     Symptom: "Symptom visit",
     Problem: "Problem visit",
