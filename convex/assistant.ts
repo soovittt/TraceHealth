@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { canRead, assertWrite } from "./authz";
 import { metaFor } from "./metrics";
+import { buildToolContext, toolSchemas, executeTool } from "./aiTools";
 
 // ---- conversations & transcript ------------------------------------------
 
@@ -208,194 +209,117 @@ export const answer = internalAction({
     );
     const iso = (t?: number) => (t ? new Date(t).toISOString().slice(0, 10) : null);
 
-    // AI-friendly context: per-metric TREND SUMMARIES (not a raw row dump), plus
-    // deduped problem/med lists. High signal, low tokens, easy to reason over.
-    const docMap = new Map<string, any>(s.docs.map((d: any) => [d._id, d]));
-    const num = (n: number) => Number(n.toFixed(2));
-
-    const byCode: Record<string, any[]> = {};
-    for (const o of s.obs) (byCode[o.code] ??= []).push(o);
-    const metrics = Object.entries(byCode)
-      .map(([code, arr]) => {
-        arr.sort((a, b) => a.date - b.date);
-        const meta = metaFor(code, arr[0].label, arr[0].unit);
-        const vals = arr.map((x) => x.value);
-        const first = arr[0];
-        const last = arr[arr.length - 1];
-        const dir = last.value > first.value ? "rising" : last.value < first.value ? "falling" : "flat";
-        const flag =
-          meta.refHigh && last.value > meta.refHigh ? "above reference" : meta.refLow && last.value < meta.refLow ? "below reference" : "in range";
-        return {
-          metric: code,
-          label: meta.label,
-          unit: last.unit || meta.unit,
-          readings: arr.length,
-          first: { value: first.value, date: iso(first.date) },
-          latest: { value: last.value, date: iso(last.date), documentId: last.documentId },
-          min: num(Math.min(...vals)),
-          max: num(Math.max(...vals)),
-          trend: dir,
-          status: flag,
-          referenceHigh: meta.refHigh ?? null,
-          referenceLow: meta.refLow ?? null,
-          recent: arr.slice(-5).map((x) => ({ value: x.value, date: iso(x.date) })),
-        };
-      })
-      .sort((a, b) => b.readings - a.readings);
-
-    // Which records is this question actually about? Real keyword/synonym match
-    // over the metric catalog — shown to the user as the "focus" step.
-    const SYNONYMS: Record<string, string[]> = {
-      cholesterol: ["LDL", "HDL", "CHOL_TOTAL", "TRIG"],
-      lipid: ["LDL", "HDL", "CHOL_TOTAL", "TRIG"],
-      triglyceride: ["TRIG"],
-      diabetes: ["HBA1C", "GLUCOSE"],
-      sugar: ["GLUCOSE", "HBA1C"],
-      a1c: ["HBA1C"],
-      glucose: ["GLUCOSE"],
-      "blood pressure": ["BP_SYS", "BP_DIA"],
-      bp: ["BP_SYS", "BP_DIA"],
-      hypertension: ["BP_SYS", "BP_DIA"],
-      weight: ["WEIGHT", "BMI"],
-      bmi: ["BMI"],
-      kidney: ["EGFR", "CREATININE"],
-      renal: ["EGFR", "CREATININE"],
-      "vitamin d": ["VITD"],
-      "heart rate": ["HR"],
-      pulse: ["HR"],
-    };
-    const ql = question.toLowerCase();
-    const focusCodes = new Set<string>();
-    for (const [word, codes] of Object.entries(SYNONYMS)) {
-      if (ql.includes(word)) codes.forEach((c) => focusCodes.add(c));
-    }
-    for (const m of metrics) {
-      if (ql.includes(m.metric.toLowerCase()) || ql.includes(m.label.toLowerCase())) focusCodes.add(m.metric);
-    }
-    const focusLabels = metrics.filter((m: any) => focusCodes.has(m.metric)).map((m: any) => m.label);
-    await begin("Finding the relevant records");
-    await done(
-      focusLabels.length
-        ? `Focused on ${focusLabels.slice(0, 4).join(", ")}${focusLabels.length > 4 ? ` +${focusLabels.length - 4} more` : ""}`
-        : attachment
-          ? `Reading the attached file against your full record`
-          : `Scanning your full record — ${metrics.length} tracked metrics`,
-    );
-
-    // Dedupe conditions by concept; keep active first.
-    const seenC = new Set<string>();
-    const conditions = [...s.conds]
-      .sort((a: any, b: any) => (b.diagnosedDate ?? 0) - (a.diagnosedDate ?? 0))
-      .filter((c: any) => (seenC.has(c.normalizedName) ? false : (seenC.add(c.normalizedName), true)))
-      .map((c: any) => ({ name: c.name, status: c.status, diagnosed: iso(c.diagnosedDate), documentId: c.documentId }));
-
-    // Fold the deterministic "needs attention" signals into the AI's context so
-    // "what should I watch?" is answered from the same engine the dashboard uses.
+    // Fold the deterministic "needs attention" signals in, then build the tool
+    // layer the model can call to go deep on demand.
     const signals: any[] = await ctx.runQuery(api.signals.getSignals, { patientId });
+    const tctx = buildToolContext(s, signals, iso);
+    const tools = toolSchemas(tctx);
+    const allCodes = new Set<string>(tctx.metrics.map((m: any) => m.code));
+    const allDocs = new Set<string>(s.docs.map((d: any) => String(d._id)));
+    const usedDocs = new Set<string>();
+    const usedCodes = new Set<string>();
 
-    const record = {
-      patient: s.patient ? { name: s.patient.name, age: s.patient.age, recordsFrom: s.patient.recordsFrom } : null,
-      sources: s.docs.map((d: any) => ({ documentId: d._id, org: d.org, date: iso(d.receivedAt) })),
-      needsAttention: signals.slice(0, 8).map((g: any) => ({ severity: g.severity, title: g.title, detail: g.detail, documentId: g.documentId })),
-      metricTrends: metrics,
-      medications: s.meds.map((m: any) => ({ name: m.name, dose: m.dose ? `${m.dose} ${m.doseUnit}` : null, status: m.status, started: iso(m.startDate), documentId: m.documentId })),
-      conditions,
-      encounters: [...s.encs]
-        .sort((a: any, b: any) => b.date - a.date)
-        .slice(0, 25)
-        .map((e: any) => ({ title: e.title, kind: e.kind, org: e.org, date: iso(e.date), documentId: e.documentId })),
-      allergies: s.allergies.map((a: any) => ({ substance: a.substance, reaction: a.reaction, documentId: a.documentId })),
-      conflicts: s.conflicts.map((c: any) => ({ type: c.kind, label: c.label, options: c.options.map((o: any) => `${o.source}: ${o.value}`), status: c.status })),
-      missingRecords: s.missing.map((m: any) => ({ label: m.label, org: m.org, date: iso(m.date) })),
+    // A compact overview so simple questions need no tool call; tools add depth.
+    const overview = {
+      patient: tctx.patient,
+      counts: { labs: s.obs.length, medications: s.meds.length, conditions: tctx.conditions.length, sources: new Set(s.docs.map((d: any) => d.org)).size },
+      needsAttention: signals.slice(0, 8).map((g: any) => ({ severity: g.severity, title: g.title })),
+      metrics: tctx.metrics.map((m: any) => ({ code: m.code, label: m.label, latest: m.latest.value, unit: m.unit, date: m.latest.date, trend: m.trend, status: m.status, documentId: m.latest.documentId })),
+      medications: tctx.meds.map((m: any) => ({ name: m.name, status: m.status, documentId: m.documentId })),
+      conditions: tctx.conditions.map((c: any) => ({ name: c.name, status: c.status, documentId: c.documentId })),
+      allergies: tctx.allergies,
+      sources: tctx.sources,
     };
 
-    const system =
-      "You are TraceHealth's clinical data assistant. You answer questions about ONE patient using ONLY the structured records provided as JSON. " +
-      "The `metricTrends` array is the labs/vitals summarized per metric (first, latest, min, max, trend, reference status, recent points) — use it for anything about values, trends, or ranges. " +
-      "Rules: (1) Use only facts present in the data; if the answer is not in the records, say so plainly. " +
-      "(2) Never diagnose, prescribe, or give treatment advice. Describe what the records show and note temporal associations, not causation. " +
-      "(3) Be concise and specific — cite concrete values, dates, and trends. Prefer short paragraphs or tight bullet lists. " +
-      "(4) For every claim, attach the source by including the relevant documentId(s) in the citations array. " +
-      "(5) Frame as 'your records show', never 'the AI thinks'. " +
-      "(5b) If the question is genuinely ambiguous and there is no CURRENT VIEW to anchor it (e.g. a bare 'is this normal?' on the full-page chat), ask one short clarifying question instead of guessing. " +
-      "(6) Do NOT write a 'Citations'/'Sources' section, footnotes, or any URLs/links inside the answer text — the app renders citations separately from the citations array. Never invent links. " +
-      "(7) When the answer is about one or more measurements or their trends, list the relevant metric codes (the `metric` field from metricTrends) in `charts` (max 3) — the app draws the real chart from the data, so never put numbers in the answer that contradict the record. " +
-      "(8) Also return `steps`: 2–4 SHORT, concrete phrases describing the analysis you performed over the records — what you looked at and compared (e.g. 'Isolated 8 LDL readings from 2019–2026', 'Compared latest 96 mg/dL against the 130 target', 'Checked for a statin start in that window'). These are shown to the user as a reasoning trace, so keep them factual and health-framed — NOT your internal monologue, NOT restatements of the question. " +
-      "(9) The `needsAttention` array is the app's own flagged signals (out-of-range labs, worsening trends, overdue rechecks) — use it for 'what should I watch/pay attention to' questions. " +
-      "(10) Also return `followups`: 2-3 SHORT, specific next questions this person might naturally ask given your answer and their record (phrased as the user would ask them). " +
-      'Return STRICT JSON: {"answer": string (concise markdown, no links, no citations section), "citations": [{"documentId": string}], "charts": [string], "steps": [string], "followups": [string]}. ' +
-      "Only use documentId values and metric codes that appear in the provided data.";
+    const call = async (body: any): Promise<any> => {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, temperature: 0.2, ...body }),
+      });
+      if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      return res.json();
+    };
+
+    const TOOL_SYSTEM =
+      "You are TraceHealth's clinical data assistant for ONE patient. Answer using ONLY this patient's records. " +
+      "You are given a RECORD OVERVIEW and a set of TOOLS. For simple questions the overview may be enough; for anything needing specific values, full trends, projections, medication effects, correlations, or a search, CALL THE TOOLS to get grounded numbers — never guess or estimate values. " +
+      "Call as many tools as you need, then stop. Never diagnose, prescribe, or advise treatment — describe what the records show and note temporal associations, not causation. " +
+      "If the question is genuinely ambiguous and there is no CURRENT VIEW to anchor it, ask one short clarifying question.";
+
+    const FINAL_SYSTEM =
+      "Now write the final answer to the user's question using ONLY the overview and tool results above. " +
+      "Be concise and specific — concrete values, dates, trends; short paragraphs or tight bullet lists (markdown ok). " +
+      "Do NOT include a citations/sources section or any links in the answer text. Non-diagnostic. " +
+      'Return STRICT JSON: {"answer": string, "charts": [metric code strings to render inline, max 3], "citations": [{"documentId": string}], "followups": [2-3 short next questions the user might ask]}. ' +
+      "Only use documentId values and metric codes that appeared in the overview or tool results.";
+
+    const messages: any[] = [
+      { role: "system", content: TOOL_SYSTEM },
+      {
+        role: "user",
+        content:
+          (context ? `CURRENT VIEW: The user is looking at "${context}". Resolve "this/that/the chart" to it.\n\n` : "") +
+          (attachment ? `ATTACHED FILE ("${attachment.filename}") — analyze it and relate it to the record:\n"""\n${attachment.text.slice(0, 12000)}\n"""\n\n` : "") +
+          `RECORD OVERVIEW (JSON):\n${JSON.stringify(overview)}\n\nQUESTION: ${question}`,
+      },
+    ];
 
     let content = "";
     let citations: { documentId: Id<"documents">; label: string }[] = [];
     let charts: string[] = [];
     let followups: string[] = [];
     try {
-      await begin(
-        "Reasoning over the data",
-        focusLabels.length ? `Analyzing ${focusLabels.slice(0, 3).join(", ")}` : undefined,
-      );
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model,
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: system },
-            {
-              role: "user",
-              content:
-                (context ? `CURRENT VIEW: The user is looking at "${context}". If they say "this", "here", "that", or "the chart", resolve it to what this view is about.\n\n` : "") +
-                (attachment ? `ATTACHED FILE the user uploaded ("${attachment.filename}") — analyze it, and relate it to their records where relevant:\n"""\n${attachment.text.slice(0, 12000)}\n"""\n\n` : "") +
-                `PATIENT RECORDS (JSON):\n${JSON.stringify(record)}\n\nQUESTION: ${question}`,
-            },
-          ],
-        }),
-      });
-      if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
-      const json = await res.json();
-      const parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}");
-      content = String(parsed.answer ?? "").trim() || "I couldn't find an answer in your records.";
-
-      // Validate citations against real documents (drop hallucinated ids).
-      const validIds = new Set<string>(s.docs.map((d: any) => d._id));
-      const seen = new Set<string>();
-      for (const c of Array.isArray(parsed.citations) ? parsed.citations : []) {
-        const id = String(c?.documentId ?? "");
-        if (validIds.has(id) && !seen.has(id)) {
-          seen.add(id);
-          const doc = docMap.get(id);
-          // Build the label from the real document — never trust the model's.
-          citations.push({
-            documentId: id as Id<"documents">,
-            label: doc ? `${doc.org} · ${iso(doc.receivedAt)}` : "Source",
-          });
+      // --- tool phase: the model calls grounded functions until it has enough ---
+      const MAX_ROUNDS = 4;
+      for (let round = 1; round <= MAX_ROUNDS; round++) {
+        await begin(round === 1 ? "Analyzing your question" : "Looking deeper");
+        const j = await call({ messages, tools, tool_choice: round === MAX_ROUNDS ? "none" : "auto" });
+        const msg = j.choices?.[0]?.message ?? {};
+        messages.push(msg);
+        const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+        if (!calls.length) {
+          await done();
+          break;
+        }
+        await done(`Using ${calls.length} data tool${calls.length > 1 ? "s" : ""}`);
+        for (const tc of calls) {
+          let a: any = {};
+          try { a = JSON.parse(tc.function?.arguments || "{}"); } catch { a = {}; }
+          const r = executeTool(tc.function?.name ?? "", a, tctx);
+          r.docs.forEach((d) => usedDocs.add(String(d)));
+          r.codes.forEach((c) => usedCodes.add(String(c)));
+          steps.push({ title: r.label, detail: r.detail, status: "done" });
+          await flush();
+          messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(r.result).slice(0, 4000) });
         }
       }
 
-      // Validate chart codes against metrics that actually exist (no fabrication).
-      const validCodes = new Set<string>(metrics.map((m: any) => m.metric));
+      // --- final grounded answer (structured) ---
+      await begin("Writing your answer");
+      const fj = await call({ messages: [...messages, { role: "system", content: FINAL_SYSTEM }], response_format: { type: "json_object" } });
+      const parsed = JSON.parse(fj.choices?.[0]?.message?.content ?? "{}");
+      content = String(parsed.answer ?? "").trim() || "I couldn't find an answer in your records.";
+
+      const seen = new Set<string>();
+      for (const c of Array.isArray(parsed.citations) ? parsed.citations : []) {
+        const id = String(c?.documentId ?? "");
+        if (allDocs.has(id) && !seen.has(id)) {
+          seen.add(id);
+          const doc = tctx.docMap.get(id);
+          citations.push({ documentId: id as Id<"documents">, label: doc ? `${doc.org} · ${iso(doc.receivedAt)}` : "Source" });
+        }
+      }
       charts = (Array.isArray(parsed.charts) ? parsed.charts : [])
         .map((c: any) => String(c))
-        .filter((c: string) => validCodes.has(c))
+        .filter((c: string) => allCodes.has(c))
         .filter((c: string, i: number, arr: string[]) => arr.indexOf(c) === i)
         .slice(0, 3);
-
       followups = (Array.isArray(parsed.followups) ? parsed.followups : [])
         .map((f: any) => String(f).trim())
         .filter(Boolean)
         .slice(0, 3);
-
-      // Fold the model's own articulated analysis into the trace as done steps.
       await done();
-      const modelSteps = (Array.isArray(parsed.steps) ? parsed.steps : [])
-        .map((x: any) => String(x).trim())
-        .filter(Boolean)
-        .slice(0, 4);
-      for (const t of modelSteps) steps.push({ title: t, status: "done" });
-      if (modelSteps.length) await flush();
     } catch (e: any) {
       await ctx.runMutation(internal.assistant.finalize, {
         messageId,
