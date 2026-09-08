@@ -227,6 +227,22 @@ export default defineSchema({
     .index("by_patient_date", ["patientId", "date"])
     .index("by_patient_type_date", ["patientId", "type", "date"]),
 
+  // Background export jobs — a request schedules an action that builds the file,
+  // stores it in Convex file storage, and flips the row to "ready". The client
+  // watches this row reactively (no polling).
+  exports: defineTable({
+    patientId: v.id("patients"),
+    userId: v.optional(v.id("users")),
+    format: v.string(), // "fhir" | "json" | "csv"
+    status: v.string(), // "pending" | "ready" | "error"
+    filename: v.optional(v.string()),
+    mime: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
+    records: v.optional(v.number()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_patient", ["patientId"]),
+
   // Each distinct AI chat thread.
   conversations: defineTable({
     patientId: v.id("patients"),

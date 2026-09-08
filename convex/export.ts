@@ -1,7 +1,9 @@
-import { query } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation, internalAction } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
-import { canRead } from "./authz";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { canRead, assertWrite } from "./authz";
 import { metaFor } from "./metrics";
 
 // ---- record export -------------------------------------------------------
@@ -147,5 +149,91 @@ export const exportMetricCsv = query({
     const rows: (string | number | undefined)[][] = [["date", "value", "unit", "provider"]];
     for (const o of obs) rows.push([day(o.date), o.value, o.unit, o.provider]);
     return { filename: `tracehealth-${code.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`, mime: "text/csv", content: csvRows(rows), label: meta.label };
+  },
+});
+
+// ---- background export job ------------------------------------------------
+// The deep-Convex path: requestExport schedules an ACTION that builds the file,
+// stores it in FILE STORAGE, and flips the job to "ready". The client watches
+// the job row REACTIVELY (no polling) and downloads when it's done.
+
+function buildFile(d: any, format: "fhir" | "json" | "csv") {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const base = `tracehealth-${(d.patient?.name ?? "record").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${stamp}`;
+  if (format === "csv") return { filename: `${base}.csv`, mime: "text/csv", content: toCsv(d) };
+  if (format === "fhir") return { filename: `${base}.fhir.json`, mime: "application/fhir+json", content: JSON.stringify(toFhirBundle(d), null, 2) };
+  return { filename: `${base}.json`, mime: "application/json", content: JSON.stringify(toJson(d), null, 2) };
+}
+
+// Internal, no-auth loader — reachable only from the scheduled action, which was
+// authorized upstream in requestExport.
+export const rawData = internalQuery({
+  args: { patientId: v.id("patients") },
+  handler: async (ctx, { patientId }) => {
+    const get = (t: string) => ctx.db.query(t as any).withIndex("by_patient", (q: any) => q.eq("patientId", patientId)).collect();
+    const [patient, documents, observations, medications, conditions, encounters, allergies] = await Promise.all([
+      ctx.db.get(patientId), get("documents"), get("observations"), get("medications"), get("conditions"), get("encounters"), get("allergies"),
+    ]);
+    return { patient, documents, observations, medications, conditions, encounters, allergies };
+  },
+});
+
+export const getExportJob = internalQuery({
+  args: { jobId: v.id("exports") },
+  handler: async (ctx, { jobId }) => ctx.db.get(jobId),
+});
+
+export const markExportReady = internalMutation({
+  args: { jobId: v.id("exports"), storageId: v.id("_storage"), filename: v.string(), mime: v.string(), records: v.number() },
+  handler: async (ctx, a) => {
+    await ctx.db.patch(a.jobId, { status: "ready", storageId: a.storageId, filename: a.filename, mime: a.mime, records: a.records });
+  },
+});
+
+export const markExportError = internalMutation({
+  args: { jobId: v.id("exports"), error: v.string() },
+  handler: async (ctx, { jobId, error }) => {
+    await ctx.db.patch(jobId, { status: "error", error });
+  },
+});
+
+// 1) Request → job row + scheduled action. Returns instantly.
+export const requestExport = mutation({
+  args: { patientId: v.id("patients"), format: v.union(v.literal("fhir"), v.literal("json"), v.literal("csv")) },
+  handler: async (ctx, { patientId, format }): Promise<Id<"exports">> => {
+    await assertWrite(ctx, patientId);
+    const userId = await getAuthUserId(ctx);
+    const jobId = await ctx.db.insert("exports", { patientId, userId: userId ?? undefined, format, status: "pending", createdAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.export.generateExport, { jobId });
+    return jobId;
+  },
+});
+
+// 2) Background action: build → store in file storage → mark ready.
+export const generateExport = internalAction({
+  args: { jobId: v.id("exports") },
+  handler: async (ctx, { jobId }) => {
+    const job: any = await ctx.runQuery(internal.export.getExportJob, { jobId });
+    if (!job) return;
+    try {
+      const d: any = await ctx.runQuery(internal.export.rawData, { patientId: job.patientId });
+      const { filename, mime, content } = buildFile(d, job.format);
+      const storageId = await ctx.storage.store(new Blob([content], { type: mime }));
+      const records = d.observations.length + d.medications.length + d.conditions.length + d.encounters.length + d.allergies.length;
+      await ctx.runMutation(internal.export.markExportReady, { jobId, storageId, filename, mime, records });
+    } catch (e: any) {
+      await ctx.runMutation(internal.export.markExportError, { jobId, error: String(e?.message ?? e).slice(0, 200) });
+    }
+  },
+});
+
+// 3) Reactive status + signed download URL once ready.
+export const getExport = query({
+  args: { jobId: v.id("exports") },
+  handler: async (ctx, { jobId }) => {
+    const job = await ctx.db.get(jobId);
+    if (!job || !(await canRead(ctx, job.patientId))) return null;
+    const url = job.storageId ? await ctx.storage.getUrl(job.storageId) : null;
+    return { status: job.status, format: job.format, filename: job.filename ?? null, mime: job.mime ?? null, records: job.records ?? null, error: job.error ?? null, url };
   },
 });
