@@ -118,13 +118,27 @@ export default function Timeline() {
   );
 }
 
+const BADGE: Record<string, string> = { encounter: "Visit", medication: "Medication", condition: "Diagnosis", allergy: "Allergy" };
+const SUB_LABEL: Record<string, string> = { encounter: "Facility", medication: "Dose", condition: "Status", allergy: "Reaction" };
+
 function Row({ it, onEvidence, onMetric }: { it: any; onEvidence: (e: any) => void; onMetric: (c: string) => void }) {
   const day = new Date(it.date).getUTCDate();
   const isLab = it.type === "lab";
   const title = it.type === "encounter" ? cleanTitle(it.title) : it.title;
+
+  function openEvidence() {
+    const rows: { label: string; value: string }[] = [{ label: "Date", value: new Date(it.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) }];
+    if (it.subtitle) rows.push({ label: SUB_LABEL[it.type] ?? "Detail", value: it.subtitle });
+    onEvidence({
+      documentId: it.documentId,
+      page: it.page,
+      detail: { badge: BADGE[it.type] ?? "Record", title, rows },
+    });
+  }
+
   return (
     <button
-      onClick={() => (isLab && it.code ? onMetric(it.code) : it.documentId && onEvidence({ documentId: it.documentId, page: it.page }))}
+      onClick={() => (isLab && it.code ? onMetric(it.code) : it.documentId && openEvidence())}
       className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-line-soft"
     >
       <span className="mono w-6 shrink-0 text-right text-sm text-ink-400">{day}</span>

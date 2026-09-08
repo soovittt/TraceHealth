@@ -10,6 +10,8 @@ export default function EvidencePanel() {
     evidence ? { documentId: evidence.documentId, shareToken: shareToken ?? undefined } : "skip",
   );
 
+  const isImport = !!doc && ((doc as any).receivedVia === "fhir" || (doc as any).kind === "fhir" || (doc as any).kind === "import");
+
   if (!evidence) return null;
 
   return (
@@ -29,8 +31,26 @@ export default function EvidencePanel() {
           <div className="p-5 text-sm text-ink-400">Source not found.</div>
         ) : (
           <div className="flex-1 overflow-auto p-4">
-            {/* source header — real file type, org, date, page */}
-            <div className="flex items-start gap-2.5">
+            {/* the specific record you clicked */}
+            {evidence.detail && (
+              <div className="rounded-lg border border-line bg-canvas p-3">
+                <div className="flex items-center gap-2">
+                  <span className="tag">{evidence.detail.badge}</span>
+                  <span className="text-sm font-semibold text-ink-900">{evidence.detail.title}</span>
+                </div>
+                <dl className="mt-2 divide-y divide-line-soft">
+                  {evidence.detail.rows.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-1 text-xs">
+                      <dt className="text-ink-400">{r.label}</dt>
+                      <dd className="truncate text-right text-ink-800">{r.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+
+            {/* provenance — where this record came from */}
+            <div className={`flex items-start gap-2.5 ${evidence.detail ? "mt-4" : ""}`}>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-line bg-canvas text-2xs font-semibold text-ink-500">
                 {fileKind(doc)}
               </span>
@@ -46,8 +66,13 @@ export default function EvidencePanel() {
               {doc.filename}
             </div>
 
-            <div className="eyebrow mt-4">Source content</div>
-            <div className="mt-1.5 max-h-[52vh] overflow-auto rounded-md border border-line bg-canvas p-3">
+            <div className="eyebrow mt-4">{isImport ? "Import source" : "Source content"}</div>
+            {isImport && evidence.detail && (
+              <p className="mt-1 text-2xs leading-relaxed text-ink-400">
+                Pulled from a live FHIR sync. The synced record for this item held only the fields above — the block below is the import manifest, not a full clinical note.
+              </p>
+            )}
+            <div className="mt-1.5 max-h-[42vh] overflow-auto rounded-md border border-line bg-canvas p-3">
               <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-ink-700">
                 {doc.excerpt?.trim() || "No extracted text available for this record."}
               </pre>

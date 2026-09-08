@@ -19,7 +19,14 @@ export type View =
 
 export type AuthMode = "signIn" | "signUp";
 
-export type Evidence = { documentId: Id<"documents">; page?: number; highlight?: string } | null;
+export type Evidence = {
+  documentId: Id<"documents">;
+  page?: number;
+  highlight?: string;
+  // Optional record-specific detail (so the panel shows WHAT this record is,
+  // not just the shared import document).
+  detail?: { badge: string; title: string; rows: { label: string; value: string }[]; note?: string };
+} | null;
 
 type Store = {
   patientId: Id<"patients"> | null;
