@@ -5,7 +5,7 @@ import { useStore } from "../lib/store";
 import { fmtDate, fmtNum } from "../lib/format";
 
 export default function EvidencePanel() {
-  const { evidence, showEvidence, openMetric, patientId, shareToken } = useStore();
+  const { evidence, showEvidence, openMetric, askAI, patientId, shareToken } = useStore();
   const doc = useQuery(
     api.health.getDocument,
     evidence ? { documentId: evidence.documentId, shareToken: shareToken ?? undefined } : "skip",
@@ -19,6 +19,16 @@ export default function EvidencePanel() {
 
   const isImport = !!doc && ((doc as any).receivedVia === "fhir" || (doc as any).kind === "fhir" || (doc as any).kind === "import");
   const hasVisitContent = !!visit && (visit.labs.length + visit.meds.length + visit.conditions.length > 0);
+
+  function explainVisit() {
+    if (!evidence?.detail) return;
+    const dateStr = evidence.detail.rows.find((r) => r.label === "Date")?.value ?? "";
+    const labs = (visit?.labs ?? []).map((l: any) => `${l.label} ${l.value} ${l.unit}`.trim()).join(", ");
+    const meds = (visit?.meds ?? []).map((m: any) => m.name).join(", ");
+    const parts = [labs && `labs — ${labs}`, meds && `started ${meds}`].filter(Boolean).join("; ");
+    askAI(`Explain my "${evidence.detail.title}" visit${dateStr ? ` on ${dateStr}` : ""}${parts ? `. Recorded that day: ${parts}` : ""}. In plain language: what do these results mean, is anything concerning, and what should I keep an eye on?`);
+    showEvidence(null);
+  }
 
   if (!evidence) return null;
 
@@ -55,6 +65,13 @@ export default function EvidencePanel() {
                   ))}
                 </dl>
               </div>
+            )}
+
+            {visitDate && (
+              <button onClick={explainVisit} className="btn-secondary mt-3 w-full gap-1.5">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
+                Explain this visit with AI
+              </button>
             )}
 
             {/* what actually happened at this visit — the co-dated records */}
