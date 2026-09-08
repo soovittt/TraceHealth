@@ -13,7 +13,7 @@ export default function EvidencePanel() {
   const visitDate = evidence?.detail?.visitDate;
   const visit = useQuery(
     api.health.visitRecords,
-    visitDate && patientId ? { patientId, date: visitDate, shareToken: shareToken ?? undefined } : "skip",
+    visitDate && patientId ? { patientId, date: visitDate, encounterId: (evidence?.detail?.encounterId as any) ?? undefined, shareToken: shareToken ?? undefined } : "skip",
   );
   const [showSource, setShowSource] = useState(false);
 
@@ -60,7 +60,14 @@ export default function EvidencePanel() {
             {/* what actually happened at this visit — the co-dated records */}
             {visitDate && (
               <div className="mt-4">
-                <div className="eyebrow">Recorded at this visit</div>
+                <div className="flex items-center justify-between">
+                  <div className="eyebrow">Recorded at this visit</div>
+                  {hasVisitContent && (
+                    <span className={`text-2xs ${visit?.linkedBy === "encounter" ? "text-good-ink" : "text-ink-400"}`}>
+                      {visit?.linkedBy === "encounter" ? "✓ linked in FHIR" : "same day"}
+                    </span>
+                  )}
+                </div>
                 {visit === undefined ? (
                   <div className="mt-2 h-16 animate-pulse rounded-md bg-line-soft" />
                 ) : hasVisitContent ? (

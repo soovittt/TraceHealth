@@ -57,16 +57,21 @@ const LOINC: Record<string, { code: string; label: string }> = {
   "62292-8": { code: "VITD", label: "Vitamin D, 25-OH" },
 };
 
-type FObs = { code: string; label: string; value: number; unit: string; date: number };
-type FMed = { name: string; normalizedName: string; dose?: number; doseUnit?: string; startDate?: number };
-type FCond = { name: string; normalizedName: string; diagnosedDate?: number };
-type FEnc = { kind: string; title: string; date: number; summary?: string };
+type FObs = { code: string; label: string; value: number; unit: string; date: number; encounterRef?: string };
+type FMed = { name: string; normalizedName: string; dose?: number; doseUnit?: string; startDate?: number; encounterRef?: string };
+type FCond = { name: string; normalizedName: string; diagnosedDate?: number; encounterRef?: string };
+type FEnc = { kind: string; title: string; date: number; summary?: string; fhirId?: string };
 type FAllergy = { substance: string; reaction?: string };
 
 function entries(bundle: any): any[] {
   return Array.isArray(bundle?.entry) ? bundle.entry.map((e: any) => e.resource).filter(Boolean) : [];
 }
 const ms = (s?: string) => (s ? Date.parse(s) || undefined : undefined);
+// The FHIR encounter this resource explicitly belongs to (id, prefix stripped).
+const encRef = (r: any): string | undefined => {
+  const ref = r?.encounter?.reference ?? (Array.isArray(r?.encounter) ? r.encounter[0]?.reference : undefined);
+  return ref ? String(ref).split("/").pop() : undefined;
+};
 const normDrug = (name: string) => name.toLowerCase().replace(/\s*\d.*$/, "").trim();
 
 // A fetcher bound to a base URL and optional bearer token.
@@ -105,6 +110,7 @@ async function collectPatient(get: (p: string) => Promise<any>, pid: string) {
   const mapObs = (r: any): FObs[] => {
     const date = ms(r?.effectiveDateTime ?? r?.issued);
     if (!date) return [];
+    const ref = encRef(r);
 
     // Component observations (e.g. blood pressure) → one point per known component.
     if (Array.isArray(r?.component) && r.component.length) {
@@ -113,7 +119,7 @@ async function collectPatient(get: (p: string) => Promise<any>, pid: string) {
         const cLoinc = comp?.code?.coding?.find((c: any) => c.system?.includes("loinc"))?.code;
         const m = cLoinc ? LOINC[cLoinc] : undefined;
         const q = comp?.valueQuantity;
-        if (m && q?.value != null) out.push({ code: m.code, label: m.label, value: Math.round(q.value), unit: q.unit ?? "mmHg", date });
+        if (m && q?.value != null) out.push({ code: m.code, label: m.label, value: Math.round(q.value), unit: q.unit ?? "mmHg", date, encounterRef: ref });
       }
       if (out.length) return out;
     }
@@ -125,21 +131,21 @@ async function collectPatient(get: (p: string) => Promise<any>, pid: string) {
     const mapped = loinc ? LOINC[loinc] : undefined;
     // Skip noisy unmapped labs so the timeline/charts stay clean and legible.
     if (!mapped) return [];
-    return [{ code: mapped.code, label: mapped.label, value: Number(q.value.toFixed?.(1) ?? q.value), unit: q.unit ?? "", date }];
+    return [{ code: mapped.code, label: mapped.label, value: Number(q.value.toFixed?.(1) ?? q.value), unit: q.unit ?? "", date, encounterRef: ref }];
   };
 
   const observations = [...entries(labB), ...entries(vitalB)].flatMap(mapObs).slice(0, 400);
   const medications: FMed[] = entries(medB)
     .map((r: any): FMed | null => {
       const name = r?.medicationCodeableConcept?.coding?.[0]?.display ?? r?.medicationCodeableConcept?.text;
-      return name ? { name, normalizedName: normDrug(name), startDate: ms(r?.authoredOn) } : null;
+      return name ? { name, normalizedName: normDrug(name), startDate: ms(r?.authoredOn), encounterRef: encRef(r) } : null;
     })
     .filter((m): m is FMed => !!m)
     .slice(0, 40);
   const conditions: FCond[] = entries(condB)
     .map((r: any): FCond | null => {
       const name = r?.code?.coding?.[0]?.display ?? r?.code?.text;
-      return name ? { name, normalizedName: name.toLowerCase(), diagnosedDate: ms(r?.onsetDateTime ?? r?.recordedDate) } : null;
+      return name ? { name, normalizedName: name.toLowerCase(), diagnosedDate: ms(r?.onsetDateTime ?? r?.recordedDate), encounterRef: encRef(r) } : null;
     })
     .filter((c): c is FCond => !!c)
     .slice(0, 40);
@@ -156,7 +162,7 @@ async function collectPatient(get: (p: string) => Promise<any>, pid: string) {
       if (!date) return null;
       const title = r?.type?.[0]?.coding?.[0]?.display ?? r?.type?.[0]?.text ?? "Encounter";
       const kind = r?.class?.code === "AMB" ? "Visit" : r?.class?.display ?? "Encounter";
-      return { kind, title, date };
+      return { kind, title, date, fhirId: r?.id ? String(r.id) : undefined };
     })
     .filter((e): e is FEnc => !!e)
     .slice(0, 40);
@@ -177,10 +183,10 @@ export const insertFhirBundle = internalMutation({
     fhirPatientId: v.string(),
     patientName: v.optional(v.string()),
     age: v.optional(v.number()),
-    observations: v.array(v.object({ code: v.string(), label: v.string(), value: v.number(), unit: v.string(), date: v.number() })),
-    medications: v.array(v.object({ name: v.string(), normalizedName: v.string(), dose: v.optional(v.number()), doseUnit: v.optional(v.string()), startDate: v.optional(v.number()) })),
-    conditions: v.array(v.object({ name: v.string(), normalizedName: v.string(), diagnosedDate: v.optional(v.number()) })),
-    encounters: v.array(v.object({ kind: v.string(), title: v.string(), date: v.number(), summary: v.optional(v.string()) })),
+    observations: v.array(v.object({ code: v.string(), label: v.string(), value: v.number(), unit: v.string(), date: v.number(), encounterRef: v.optional(v.string()) })),
+    medications: v.array(v.object({ name: v.string(), normalizedName: v.string(), dose: v.optional(v.number()), doseUnit: v.optional(v.string()), startDate: v.optional(v.number()), encounterRef: v.optional(v.string()) })),
+    conditions: v.array(v.object({ name: v.string(), normalizedName: v.string(), diagnosedDate: v.optional(v.number()), encounterRef: v.optional(v.string()) })),
+    encounters: v.array(v.object({ kind: v.string(), title: v.string(), date: v.number(), summary: v.optional(v.string()), fhirId: v.optional(v.string()) })),
     allergies: v.array(v.object({ substance: v.string(), reaction: v.optional(v.string()) })),
     bypassAuth: v.optional(v.boolean()), // true only for trusted internal cron re-sync
   },
@@ -226,11 +232,11 @@ export const insertFhirBundle = internalMutation({
     for (const o of a.observations)
       await ctx.db.insert("observations", { patientId: a.patientId, ...o, documentId, page: 1, provenance: "imported" });
     for (const m of a.medications)
-      await ctx.db.insert("medications", { patientId: a.patientId, name: m.name, normalizedName: m.normalizedName, dose: m.dose, doseUnit: m.doseUnit, status: "active", startDate: m.startDate, documentId, page: 1, provenance: "imported" });
+      await ctx.db.insert("medications", { patientId: a.patientId, name: m.name, normalizedName: m.normalizedName, dose: m.dose, doseUnit: m.doseUnit, status: "active", startDate: m.startDate, encounterRef: m.encounterRef, documentId, page: 1, provenance: "imported" });
     for (const c of a.conditions)
-      await ctx.db.insert("conditions", { patientId: a.patientId, name: c.name, normalizedName: c.normalizedName, status: "active", diagnosedDate: c.diagnosedDate, documentId, page: 1, provenance: "imported" });
+      await ctx.db.insert("conditions", { patientId: a.patientId, name: c.name, normalizedName: c.normalizedName, status: "active", diagnosedDate: c.diagnosedDate, encounterRef: c.encounterRef, documentId, page: 1, provenance: "imported" });
     for (const e of a.encounters)
-      await ctx.db.insert("encounters", { patientId: a.patientId, kind: e.kind, title: e.title, date: e.date, summary: e.summary, documentId, page: 1, provenance: "imported" });
+      await ctx.db.insert("encounters", { patientId: a.patientId, kind: e.kind, title: e.title, date: e.date, summary: e.summary, fhirId: e.fhirId, documentId, page: 1, provenance: "imported" });
     for (const al of a.allergies)
       await ctx.db.insert("allergies", { patientId: a.patientId, substance: al.substance, reaction: al.reaction, documentId, page: 1, provenance: "imported" });
 

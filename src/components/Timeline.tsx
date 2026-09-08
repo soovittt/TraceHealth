@@ -132,7 +132,7 @@ function Row({ it, onEvidence, onMetric }: { it: any; onEvidence: (e: any) => vo
     onEvidence({
       documentId: it.documentId,
       page: it.page,
-      detail: { badge: BADGE[it.type] ?? "Record", title, rows, visitDate: it.type === "encounter" ? it.date : undefined },
+      detail: { badge: BADGE[it.type] ?? "Record", title, rows, visitDate: it.type === "encounter" ? it.date : undefined, encounterId: it.type === "encounter" ? it.sourceId : undefined },
     });
   }
 

@@ -524,34 +524,56 @@ export const getShare = query({
   },
 });
 
-// What actually happened at a visit: every record dated the same day — labs
-// measured, meds started, diagnoses made. Turns a bare "Follow-up" into content.
+// What actually happened at a visit. Airtight: prefers the exact FHIR
+// `encounter` reference each record carries; falls back to same-day grouping
+// only when no explicit link exists. `linkedBy` tells the UI which it used.
 export const visitRecords = query({
-  args: { patientId: v.id("patients"), date: v.number(), shareToken: v.optional(v.string()) },
-  handler: async (ctx, { patientId, date, shareToken }) => {
+  args: { patientId: v.id("patients"), encounterId: v.optional(v.id("encounters")), date: v.number(), shareToken: v.optional(v.string()) },
+  handler: async (ctx, { patientId, encounterId, date, shareToken }) => {
     if (!(await canRead(ctx, patientId, shareToken))) return null;
-    const d = new Date(date);
-    const start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-    const end = start + 24 * 3600 * 1000;
-    const inDay = (t?: number) => t != null && t >= start && t < end;
     const [obs, meds, conds] = await Promise.all([
       byPatient(ctx, "observations", patientId, shareToken),
       byPatient(ctx, "medications", patientId, shareToken),
       byPatient(ctx, "conditions", patientId, shareToken),
     ]);
-    const labs = obs
-      .filter((o: any) => inDay(o.date))
-      .map((o: any) => {
+
+    // 1) Try the exact FHIR encounter link.
+    let fhirId: string | undefined;
+    if (encounterId) fhirId = (await ctx.db.get(encounterId) as any)?.fhirId;
+    let oSel: any[] = [], mSel: any[] = [], cSel: any[] = [];
+    let linkedBy: "encounter" | "date" = "date";
+    let matched = false;
+    if (fhirId) {
+      const oL = obs.filter((o: any) => o.encounterRef === fhirId);
+      const mL = meds.filter((m: any) => m.encounterRef === fhirId);
+      const cL = conds.filter((c: any) => c.encounterRef === fhirId);
+      if (oL.length + mL.length + cL.length > 0) {
+        oSel = oL; mSel = mL; cSel = cL; linkedBy = "encounter"; matched = true;
+      }
+    }
+
+    // 2) Fall back to same-day grouping.
+    if (!matched) {
+      const d = new Date(date);
+      const start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+      const end = start + 24 * 3600 * 1000;
+      const inDay = (t?: number) => t != null && t >= start && t < end;
+      oSel = obs.filter((o: any) => inDay(o.date));
+      mSel = meds.filter((m: any) => inDay(m.startDate));
+      cSel = conds.filter((c: any) => inDay(c.diagnosedDate));
+    }
+
+    const seen = new Set<string>();
+    return {
+      linkedBy,
+      labs: oSel.map((o: any) => {
         const meta = metaFor(o.code, o.label, o.unit);
         const abnormal = (meta.refHigh != null && o.value > meta.refHigh) || (meta.refLow != null && o.value < meta.refLow);
         return { code: o.code, label: o.label, value: o.value, unit: o.unit, abnormal, documentId: o.documentId, page: o.page };
-      });
-    const seen = new Set<string>();
-    return {
-      labs,
-      meds: meds.filter((m: any) => inDay(m.startDate)).map((m: any) => ({ name: m.name, dose: m.dose ? `${m.dose} ${m.doseUnit ?? ""}`.trim() : null, documentId: m.documentId, page: m.page })),
-      conditions: conds
-        .filter((c: any) => inDay(c.diagnosedDate) && (seen.has(c.normalizedName) ? false : (seen.add(c.normalizedName), true)))
+      }),
+      meds: mSel.map((m: any) => ({ name: m.name, dose: m.dose ? `${m.dose} ${m.doseUnit ?? ""}`.trim() : null, documentId: m.documentId, page: m.page })),
+      conditions: cSel
+        .filter((c: any) => (seen.has(c.normalizedName) ? false : (seen.add(c.normalizedName), true)))
         .map((c: any) => ({ name: c.name, documentId: c.documentId, page: c.page })),
     };
   },

@@ -61,6 +61,7 @@ export default defineSchema({
     unit: v.string(),
     date: v.number(),
     provider: v.optional(v.string()),
+    encounterRef: v.optional(v.string()), // FHIR encounter this belongs to
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
@@ -78,6 +79,7 @@ export default defineSchema({
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
     prescriber: v.optional(v.string()),
+    encounterRef: v.optional(v.string()), // FHIR encounter this belongs to
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
@@ -91,6 +93,7 @@ export default defineSchema({
     normalizedName: v.string(),
     status: v.string(), // "active" | "resolved"
     diagnosedDate: v.optional(v.number()),
+    encounterRef: v.optional(v.string()), // FHIR encounter this belongs to
     documentId: v.id("documents"),
     page: v.number(),
     provenance,
@@ -106,6 +109,7 @@ export default defineSchema({
     org: v.optional(v.string()),
     date: v.number(),
     summary: v.optional(v.string()),
+    fhirId: v.optional(v.string()), // the source FHIR Encounter id
     documentId: v.id("documents"),
     page: v.number(),
     provenance,

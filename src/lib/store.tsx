@@ -25,7 +25,7 @@ export type Evidence = {
   highlight?: string;
   // Optional record-specific detail (so the panel shows WHAT this record is,
   // not just the shared import document).
-  detail?: { badge: string; title: string; rows: { label: string; value: string }[]; note?: string; visitDate?: number };
+  detail?: { badge: string; title: string; rows: { label: string; value: string }[]; note?: string; visitDate?: number; encounterId?: string };
 } | null;
 
 type Store = {
