@@ -1,15 +1,16 @@
-// A quiet, monochrome mark: a single thread with nodes — a timeline distilled.
-export function Mark({ className = "h-4 w-4", color = "currentColor" }: { className?: string; color?: string }) {
+// The mark: a health "trace" — a pulse line that resolves into a highlighted
+// node (your latest data point). Trace + health + your record, distilled.
+export function Mark({ className = "h-4 w-4", color = "currentColor", accent = "#2383e2" }: { className?: string; color?: string; accent?: string }) {
   return (
     <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden>
       <path
-        d="M2 8c2.2 0 2.2-4 4-4s1.8 8 4 8 2.2-4 4-4"
+        d="M2 9h2.6l1.1-3.8 1.5 7.2 1.3-4.6h1.7l2-2.4"
         stroke={color}
-        strokeWidth="1.4"
+        strokeWidth="1.5"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
-      <circle cx="2" cy="8" r="1.5" fill={color} />
-      <circle cx="14" cy="8" r="1.5" fill={color} />
+      <circle cx="12.2" cy="5.4" r="1.7" fill={accent} />
     </svg>
   );
 }
