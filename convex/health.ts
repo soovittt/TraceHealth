@@ -524,6 +524,39 @@ export const getShare = query({
   },
 });
 
+// What actually happened at a visit: every record dated the same day — labs
+// measured, meds started, diagnoses made. Turns a bare "Follow-up" into content.
+export const visitRecords = query({
+  args: { patientId: v.id("patients"), date: v.number(), shareToken: v.optional(v.string()) },
+  handler: async (ctx, { patientId, date, shareToken }) => {
+    if (!(await canRead(ctx, patientId, shareToken))) return null;
+    const d = new Date(date);
+    const start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const end = start + 24 * 3600 * 1000;
+    const inDay = (t?: number) => t != null && t >= start && t < end;
+    const [obs, meds, conds] = await Promise.all([
+      byPatient(ctx, "observations", patientId, shareToken),
+      byPatient(ctx, "medications", patientId, shareToken),
+      byPatient(ctx, "conditions", patientId, shareToken),
+    ]);
+    const labs = obs
+      .filter((o: any) => inDay(o.date))
+      .map((o: any) => {
+        const meta = metaFor(o.code, o.label, o.unit);
+        const abnormal = (meta.refHigh != null && o.value > meta.refHigh) || (meta.refLow != null && o.value < meta.refLow);
+        return { code: o.code, label: o.label, value: o.value, unit: o.unit, abnormal, documentId: o.documentId, page: o.page };
+      });
+    const seen = new Set<string>();
+    return {
+      labs,
+      meds: meds.filter((m: any) => inDay(m.startDate)).map((m: any) => ({ name: m.name, dose: m.dose ? `${m.dose} ${m.doseUnit ?? ""}`.trim() : null, documentId: m.documentId, page: m.page })),
+      conditions: conds
+        .filter((c: any) => inDay(c.diagnosedDate) && (seen.has(c.normalizedName) ? false : (seen.add(c.normalizedName), true)))
+        .map((c: any) => ({ name: c.name, documentId: c.documentId, page: c.page })),
+    };
+  },
+});
+
 // ---- search --------------------------------------------------------------
 
 // Levenshtein edit distance — used for typo-tolerant search (e.g. a user types
