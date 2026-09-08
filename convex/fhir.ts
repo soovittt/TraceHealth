@@ -135,13 +135,20 @@ async function collectPatient(get: (p: string) => Promise<any>, pid: string) {
   };
 
   const observations = [...entries(labB), ...entries(vitalB)].flatMap(mapObs).slice(0, 400);
-  const medications: FMed[] = entries(medB)
+  const medsRaw: FMed[] = entries(medB)
     .map((r: any): FMed | null => {
       const name = r?.medicationCodeableConcept?.coding?.[0]?.display ?? r?.medicationCodeableConcept?.text;
       return name ? { name, normalizedName: normDrug(name), startDate: ms(r?.authoredOn), encounterRef: encRef(r) } : null;
     })
-    .filter((m): m is FMed => !!m)
-    .slice(0, 40);
+    .filter((m): m is FMed => !!m);
+  // One row per drug — FHIR emits a MedicationRequest per refill/renewal; keep
+  // the earliest (the true start) so the record isn't 20× "Simvastatin".
+  const medMap = new Map<string, FMed>();
+  for (const m of medsRaw) {
+    const ex = medMap.get(m.normalizedName);
+    if (!ex || (m.startDate ?? Infinity) < (ex.startDate ?? Infinity)) medMap.set(m.normalizedName, m);
+  }
+  const medications: FMed[] = [...medMap.values()].slice(0, 40);
   const conditions: FCond[] = entries(condB)
     .map((r: any): FCond | null => {
       const name = r?.code?.coding?.[0]?.display ?? r?.code?.text;

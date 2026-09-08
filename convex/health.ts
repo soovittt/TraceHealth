@@ -462,8 +462,11 @@ export const doctorSnapshot = query({
     ]);
     if (!patient) return null;
 
+    const medSeen = new Set<string>();
     const activeMeds = meds
       .filter((m: any) => m.status === "active")
+      .sort((a: any, b: any) => (b.startDate ?? 0) - (a.startDate ?? 0))
+      .filter((m: any) => (medSeen.has(m.normalizedName) ? false : (medSeen.add(m.normalizedName), true)))
       .map((m: any) => ({ name: m.name, dose: m.dose, doseUnit: m.doseUnit, documentId: m.documentId, page: m.page }));
     const seen = new Set<string>();
     const activeConds = conds

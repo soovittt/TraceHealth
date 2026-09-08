@@ -55,7 +55,11 @@ export default function HealthHome() {
 
   const openConflicts = (conflicts ?? []).filter((c: any) => c.status === "open");
   const recent = (timeline ?? []).slice(0, 9); // getTimeline is newest-first
-  const activeMeds = (meds ?? []).filter((m: any) => m.status === "active");
+  const medSeen = new Set<string>();
+  const activeMeds = (meds ?? [])
+    .filter((m: any) => m.status === "active")
+    .sort((a: any, b: any) => (b.startDate ?? 0) - (a.startDate ?? 0))
+    .filter((m: any) => (medSeen.has(m.normalizedName) ? false : (medSeen.add(m.normalizedName), true)));
   const seen = new Set<string>();
   const activeConds = (conds ?? [])
     .filter((c: any) => c.status === "active")

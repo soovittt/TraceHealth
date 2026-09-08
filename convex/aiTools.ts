@@ -57,10 +57,14 @@ export function buildToolContext(s: any, signals: any[], iso: (t?: number) => st
     .filter((c: any) => (seenC.has(c.normalizedName) ? false : (seenC.add(c.normalizedName), true)))
     .map((c: any) => ({ name: c.name, status: c.status, diagnosed: iso(c.diagnosedDate), documentId: c.documentId }));
 
-  const meds = s.meds.map((m: any) => ({
-    name: m.name, normalizedName: m.normalizedName, dose: m.dose ? `${m.dose} ${m.doseUnit ?? ""}`.trim() : null,
-    status: m.status, started: iso(m.startDate), startNum: m.startDate ?? null, documentId: m.documentId,
-  }));
+  const medSeen = new Set<string>();
+  const meds = [...s.meds]
+    .sort((a: any, b: any) => (b.startDate ?? 0) - (a.startDate ?? 0))
+    .filter((m: any) => (medSeen.has(m.normalizedName) ? false : (medSeen.add(m.normalizedName), true)))
+    .map((m: any) => ({
+      name: m.name, normalizedName: m.normalizedName, dose: m.dose ? `${m.dose} ${m.doseUnit ?? ""}`.trim() : null,
+      status: m.status, started: iso(m.startDate), startNum: m.startDate ?? null, documentId: m.documentId,
+    }));
   const allergies = s.allergies.map((a: any) => ({ substance: a.substance, reaction: a.reaction, documentId: a.documentId }));
   const encounters = [...s.encs].sort((a: any, b: any) => b.date - a.date).map((e: any) => ({ title: e.title, kind: e.kind, org: e.org, date: iso(e.date), dateNum: e.date, documentId: e.documentId }));
   const missing = (s.missing ?? []).map((m: any) => ({ label: m.label, org: m.org, date: iso(m.date), status: m.status, documentId: m.referencedInDocumentId }));
