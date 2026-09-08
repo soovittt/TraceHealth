@@ -8,6 +8,7 @@ import SearchBar from "./SearchBar";
 import EvidencePanel from "./EvidencePanel";
 import AssistantDock from "./AssistantDock";
 import ExportMenu from "./ExportMenu";
+import ExportToast from "./ExportToast";
 import HealthHome from "./HealthHome";
 import Timeline from "./Timeline";
 import MetricGraph from "./MetricGraph";
@@ -225,6 +226,7 @@ export default function AppShell() {
       {dockSide === "right" && view !== "chat" && <AssistantDock />}
 
       <EvidencePanel />
+      <ExportToast />
 
       {shareLink && (
         <ShareModal link={shareLink} onClose={() => setShareLink(null)} onOpen={() => { setShareLink(null); go("doctor"); }} />

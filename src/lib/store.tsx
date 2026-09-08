@@ -47,6 +47,9 @@ type Store = {
   // Active AI conversation (null = a fresh, unsaved "new chat").
   conversationId: Id<"conversations"> | null;
   setConversation: (id: Id<"conversations"> | null) => void;
+  // A running background export job (drives the global toast).
+  exportJob: { id: Id<"exports">; format: string } | null;
+  setExportJob: (j: { id: Id<"exports">; format: string } | null) => void;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -121,6 +124,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<Id<"conversations"> | null>(null);
+  const [exportJob, setExportJob] = useState<{ id: Id<"exports">; format: string } | null>(null);
 
   useEffect(() => {
     localStorage.setItem("th_dockOpen", dockOpen ? "1" : "0");
@@ -192,6 +196,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     conversationId,
     setConversation: setConversationId,
+    exportJob,
+    setExportJob,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

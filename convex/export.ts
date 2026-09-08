@@ -15,7 +15,7 @@ async function loadAll(ctx: any, patientId: Id<"patients">, shareToken?: string)
   if (!(await canRead(ctx, patientId, shareToken))) return null;
   const get = (t: string) =>
     ctx.db.query(t).withIndex("by_patient", (q: any) => q.eq("patientId", patientId)).collect();
-  const [patient, documents, observations, medications, conditions, encounters, allergies] = await Promise.all([
+  const [patient, documents, observations, medications, conditions, encounters, allergies, conflicts, missing] = await Promise.all([
     ctx.db.get(patientId),
     get("documents"),
     get("observations"),
@@ -23,8 +23,10 @@ async function loadAll(ctx: any, patientId: Id<"patients">, shareToken?: string)
     get("conditions"),
     get("encounters"),
     get("allergies"),
+    get("conflicts"),
+    get("missingRecords"),
   ]);
-  return { patient, documents, observations, medications, conditions, encounters, allergies };
+  return { patient, documents, observations, medications, conditions, encounters, allergies, conflicts, missing };
 }
 
 const iso = (t?: number) => (t ? new Date(t).toISOString() : undefined);
@@ -38,20 +40,46 @@ function csvRows(rows: (string | number | undefined)[][]): string {
   return rows.map((r) => r.map(csvCell).join(",")).join("\n");
 }
 
-// A plain, human-readable normalized record (what the app actually stores).
+// A clean, structured, complete normalized record — everything the app holds,
+// sorted, with provenance, plus export metadata and a summary.
 function toJson(d: any) {
+  const bySources = new Set(d.documents.map((x: any) => x.org));
   return {
-    exportedAt: new Date().toISOString(),
-    source: "TraceHealth",
-    patient: d.patient ? { name: d.patient.name, age: d.patient.age, sex: d.patient.sex, recordsFrom: d.patient.recordsFrom } : null,
-    sources: d.documents.map((x: any) => ({ org: x.org, kind: x.kind, receivedAt: iso(x.receivedAt) })),
+    export: {
+      source: "TraceHealth",
+      format: "TraceHealth normalized health record v1",
+      exportedAt: new Date().toISOString(),
+      note: "Every fact carries its provenance (imported / ai_extracted / patient_verified). Not a medical record of legal authority.",
+    },
+    patient: d.patient ? { name: d.patient.name, age: d.patient.age, sex: d.patient.sex ?? null, recordsFrom: d.patient.recordsFrom ?? null } : null,
+    summary: {
+      observations: d.observations.length,
+      medications: d.medications.length,
+      conditions: d.conditions.length,
+      encounters: d.encounters.length,
+      allergies: d.allergies.length,
+      conflicts: (d.conflicts ?? []).length,
+      missingRecords: (d.missing ?? []).length,
+      sources: bySources.size,
+    },
+    sources: d.documents
+      .sort((a: any, b: any) => (b.receivedAt ?? 0) - (a.receivedAt ?? 0))
+      .map((x: any) => ({ org: x.org, kind: x.kind, filename: x.filename, receivedVia: x.receivedVia, receivedAt: iso(x.receivedAt) })),
     observations: d.observations
       .sort((a: any, b: any) => a.date - b.date)
-      .map((o: any) => ({ code: o.code, label: o.label, value: o.value, unit: o.unit, date: day(o.date), provider: o.provider, provenance: o.provenance })),
-    medications: d.medications.map((m: any) => ({ name: m.name, dose: m.dose, doseUnit: m.doseUnit, status: m.status, startDate: day(m.startDate), endDate: day(m.endDate), provenance: m.provenance })),
-    conditions: d.conditions.map((c: any) => ({ name: c.name, status: c.status, diagnosedDate: day(c.diagnosedDate), provenance: c.provenance })),
-    encounters: d.encounters.map((e: any) => ({ title: e.title, kind: e.kind, org: e.org, date: day(e.date), summary: e.summary })),
-    allergies: d.allergies.map((a: any) => ({ substance: a.substance, reaction: a.reaction, provenance: a.provenance })),
+      .map((o: any) => ({ code: o.code, label: o.label, value: o.value, unit: o.unit, date: day(o.date), provider: o.provider ?? null, provenance: o.provenance })),
+    medications: d.medications
+      .sort((a: any, b: any) => (b.startDate ?? 0) - (a.startDate ?? 0))
+      .map((m: any) => ({ name: m.name, normalizedName: m.normalizedName, dose: m.dose ?? null, doseUnit: m.doseUnit ?? null, status: m.status, startDate: day(m.startDate), endDate: day(m.endDate), prescriber: m.prescriber ?? null, provenance: m.provenance })),
+    conditions: d.conditions
+      .sort((a: any, b: any) => (b.diagnosedDate ?? 0) - (a.diagnosedDate ?? 0))
+      .map((c: any) => ({ name: c.name, status: c.status, diagnosedDate: day(c.diagnosedDate), provenance: c.provenance })),
+    encounters: d.encounters
+      .sort((a: any, b: any) => b.date - a.date)
+      .map((e: any) => ({ title: e.title, kind: e.kind, provider: e.provider ?? null, org: e.org ?? null, date: day(e.date), summary: e.summary ?? null })),
+    allergies: d.allergies.map((a: any) => ({ substance: a.substance, reaction: a.reaction ?? null, provenance: a.provenance })),
+    conflicts: (d.conflicts ?? []).map((c: any) => ({ type: c.kind, label: c.label, status: c.status, options: (c.options ?? []).map((o: any) => ({ source: o.source, value: o.value })), resolvedValue: c.resolvedValue ?? null })),
+    missingRecords: (d.missing ?? []).map((m: any) => ({ label: m.label, org: m.org, date: day(m.date), status: m.status })),
   };
 }
 
@@ -171,10 +199,10 @@ export const rawData = internalQuery({
   args: { patientId: v.id("patients") },
   handler: async (ctx, { patientId }) => {
     const get = (t: string) => ctx.db.query(t as any).withIndex("by_patient", (q: any) => q.eq("patientId", patientId)).collect();
-    const [patient, documents, observations, medications, conditions, encounters, allergies] = await Promise.all([
-      ctx.db.get(patientId), get("documents"), get("observations"), get("medications"), get("conditions"), get("encounters"), get("allergies"),
+    const [patient, documents, observations, medications, conditions, encounters, allergies, conflicts, missing] = await Promise.all([
+      ctx.db.get(patientId), get("documents"), get("observations"), get("medications"), get("conditions"), get("encounters"), get("allergies"), get("conflicts"), get("missingRecords"),
     ]);
-    return { patient, documents, observations, medications, conditions, encounters, allergies };
+    return { patient, documents, observations, medications, conditions, encounters, allergies, conflicts, missing };
   },
 });
 
