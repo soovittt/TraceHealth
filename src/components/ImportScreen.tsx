@@ -4,7 +4,6 @@ import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import SourceHistory from "./SourceHistory";
 
-type Mode = "extract" | "import";
 
 // The "Add data" hub — three real ways to get records IN, alongside the
 // provider sync on Connections. Renders inside the app shell.
@@ -15,8 +14,8 @@ export default function ImportScreen() {
   const generateUploadUrl = useMutation(api.ingest.generateUploadUrl);
   const requestIngest = useMutation(api.ingest.requestIngest);
 
-  const [mode, setMode] = useState<Mode>("extract");
   const [busy, setBusy] = useState(false);
+  const [drag, setDrag] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // The active AI-extraction job — watched reactively (no polling, no blocking).
@@ -51,30 +50,37 @@ export default function ImportScreen() {
     setText("");
   }
 
-  // A dropped file in the main uploader: PDF → PDF reader, image → vision,
-  // anything text-like (txt/csv/xml/C-CDA/HL7) → the box for review + AI extract.
-  async function chooseRecord(files: FileList | null) {
+  // ONE entry point for every file. We detect the type and route it — the user
+  // never has to know whether their record is a "data file" or a "document":
+  //   FHIR / JSON  → deterministic import (no AI)
+  //   PDF          → native PDF reader
+  //   image        → vision extraction
+  //   text-like    → AI text extraction (txt / csv / xml / C-CDA / HL7)
+  async function onFiles(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
     const name = file.name.toLowerCase();
-    const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
+    const ext = name.split(".").pop() ?? "";
+    setResult(null);
+    if (ext === "json" || ext === "fhir") { await importFile(files); return; }
+    const isPdf = file.type === "application/pdf" || ext === "pdf";
     const isImage = file.type.startsWith("image/");
-    if (isPdf || isImage) {
-      setBusy(true);
-      setResult(null);
-      try {
+    setBusy(true);
+    try {
+      let id;
+      if (isPdf || isImage) {
         const storageId = await upload(file);
-        const id = await requestIngest({ patientId: await pid(), source: isPdf ? "pdf" : "image", filename: file.name, storageId });
-        setJobId(id);
-      } catch (e: any) {
-        setResult({ ok: false, msg: e?.message ?? "Upload failed." });
-      } finally {
-        setBusy(false);
+        id = await requestIngest({ patientId: await pid(), source: isPdf ? "pdf" : "image", filename: file.name, storageId });
+      } else {
+        const raw = await file.text();
+        id = await requestIngest({ patientId: await pid(), source: "text", filename: file.name, text: raw });
       }
-      return;
+      setJobId(id);
+    } catch (e: any) {
+      setResult({ ok: false, msg: e?.message ?? "Couldn't read that file." });
+    } finally {
+      setBusy(false);
     }
-    setFilename(file.name);
-    setText(await file.text().catch(() => ""));
   }
 
   // --- deterministic bundle import (FHIR / TraceHealth JSON) ---
@@ -105,107 +111,80 @@ export default function ImportScreen() {
 
   const running = !!job && ["pending", "reading", "extracting"].includes(job.status);
 
-  return (
-    <div className="mx-auto max-w-5xl animate-fade-in">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="eyebrow">Add data</div>
-          <h1 className="mt-1.5 text-xl font-semibold text-ink-900">Bring records into your history</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            The richest source is a live provider —{" "}
-            <button className="font-medium text-accent" onClick={() => go("integrations")}>connect one on Connections</button>.
-          </p>
-        </div>
-        {patientId && (
-          <div className="flex gap-2">
-            <button className="btn-secondary" onClick={() => go("timeline")}>View timeline →</button>
-            <button className="btn-ghost" onClick={() => go("home")}>Overview</button>
-          </div>
-        )}
-      </div>
+  const anyBusy = busy || running;
 
-      {/* two-pane workspace: add on the left, watch your record grow on the right */}
-      <div className="mt-6 grid items-start gap-8 lg:grid-cols-[1.3fr_1fr]">
-        {/* LEFT — input methods */}
-        <div>
-          <div className="flex gap-1 rounded-lg border border-line bg-canvas p-1">
-            {([
-              ["extract", "Paste / upload a record"],
-              ["import", "Import a data file"],
-            ] as [Mode, string][]).map(([m, label]) => (
-              <button
-                key={m}
-                onClick={() => { setMode(m); setResult(null); }}
-                className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === m ? "bg-surface text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-800"}`}
-              >
-                {label}
-              </button>
+  return (
+    <div className="mx-auto max-w-2xl animate-fade-in pb-10">
+      <div className="eyebrow">Add data</div>
+      <h1 className="mt-1.5 text-2xl font-semibold text-ink-900">Bring your records in</h1>
+      <p className="mt-1 text-sm text-ink-500">Drop any medical file — we read it, structure it, and trace every fact to its source.</p>
+
+      {/* ONE import surface — a single smart dropzone that accepts anything, with
+          paste as a secondary affordance. No tabs, no classifying your file. */}
+      <div className="mt-5 card p-2">
+        <label
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); onFiles(e.dataTransfer.files); }}
+          className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-11 text-center transition-colors ${drag ? "border-accent bg-accent-soft" : "border-line-strong hover:border-accent-line hover:bg-line-soft"}`}
+        >
+          <input type="file" className="hidden" accept=".pdf,.txt,.csv,.md,.html,.xml,.cda,.ccd,.hl7,.json,.fhir,image/*" onChange={(e) => onFiles(e.target.files)} />
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-line-soft text-ink-500">
+            <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M8 10.5V2.5m0 0L5 5.5m3-3 3 3M3 11v1.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V11" /></svg>
+          </span>
+          <div className="mt-3 text-[15px] font-semibold text-ink-900">
+            {anyBusy ? "Reading your file…" : drag ? "Drop to add it" : "Drop a file, or click to browse"}
+          </div>
+          <div className="mt-1 text-xs text-ink-400">We detect the type and route it automatically</div>
+          <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+            {["PDF", "Photo", "FHIR / JSON", "C-CDA", "Text"].map((c) => (
+              <span key={c} className="rounded border border-line bg-canvas px-1.5 py-0.5 text-2xs font-medium text-ink-500">{c}</span>
             ))}
           </div>
+        </label>
 
-          <div className="mt-4">
-            {mode === "extract" && (
-              <section>
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-6 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-                  <input type="file" className="hidden" accept=".pdf,.txt,.csv,.md,.html,.xml,.cda,.ccd,.hl7,image/*" onChange={(e) => chooseRecord(e.target.files)} />
-                  <div className="text-sm font-medium text-ink-800">{busy ? "Uploading…" : "Drop a PDF, photo, or text file"}</div>
-                  <div className="mt-1 text-xs text-ink-400">Lab reports, discharge & after-visit summaries, C-CDA/XML — each fact cited to its source</div>
-                </label>
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="…or paste text here — e.g. Quest Diagnostics, 2025-08-07. LDL 164 mg/dL. HbA1c 5.7%. Penicillin allergy — rash."
-                  className="input mt-3 h-24 resize-none font-mono text-xs"
-                />
-                <div className="mt-3 flex items-center gap-3">
-                  <button className="btn-primary" onClick={startText} disabled={running || !text.trim()}>
-                    {running ? "Working…" : "Extract with AI"}
-                  </button>
-                  <span className="text-2xs text-ink-400">GPT-4o reads labs, meds, conditions & allergies</span>
-                </div>
-
-                <div className="my-4 flex items-center gap-3 text-2xs text-ink-400">
-                  <span className="h-px flex-1 bg-line" /> or snap a photo <span className="h-px flex-1 bg-line" />
-                </div>
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-6 py-4 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-                  <input type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => chooseRecord(e.target.files)} />
-                  <svg viewBox="0 0 16 16" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2.5 5.5h2l1-1.5h5l1 1.5h2v7h-11zM8 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-                  </svg>
-                  <span className="text-sm font-medium text-ink-800">Photograph a lab report or med list</span>
-                </label>
-
-                {job && <JobPanel job={job} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setJobId(null)} />}
-              </section>
-            )}
-
-            {mode === "import" && (
-              <section>
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-8 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-                  <input type="file" className="hidden" accept=".json,.fhir" onChange={(e) => importFile(e.target.files)} />
-                  <svg viewBox="0 0 16 16" className="h-6 w-6 text-ink-300" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 10V2m0 0L5 5m3-3 3 3M3 11.5v1a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 12.5v-1" />
-                  </svg>
-                  <div className="mt-2 text-sm font-medium text-ink-800">{busy ? "Importing…" : "Choose a FHIR Bundle or JSON export"}</div>
-                  <div className="mt-1 text-xs text-ink-400">A FHIR R4 Bundle or a TraceHealth JSON export — imported exactly, no AI</div>
-                </label>
-                <p className="mt-2 text-2xs text-ink-400">Tip: export from another TraceHealth account (or any FHIR system) and re-import — the round-trip is lossless.</p>
-                {importCard && <JobPanel job={importCard} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setImportCard(null)} />}
-              </section>
-            )}
+        {/* secondary: paste text */}
+        <div className="mt-2 rounded-lg bg-canvas px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="eyebrow">Or paste text</span>
+            <span className="text-2xs text-ink-400">GPT-4o extracts & cites each fact</span>
           </div>
-
-          {result && (
-            <div className={`mt-4 rounded-md border px-3.5 py-2.5 text-sm ${result.ok ? "border-good-line bg-good-soft text-good-ink" : "border-bad/30 bg-bad-soft text-bad-ink"}`}>
-              {result.msg}
-            </div>
-          )}
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Quest Diagnostics, 2025-08-07. LDL 164 mg/dL. HbA1c 5.7%. Penicillin allergy — rash."
+            className="input mt-2 h-20 resize-none bg-surface font-mono text-xs"
+          />
+          <div className="mt-2 flex justify-end">
+            <button className="btn-primary px-3 py-1.5 text-xs" onClick={startText} disabled={anyBusy || !text.trim()}>
+              {running ? "Working…" : "Extract with AI"}
+            </button>
+          </div>
         </div>
+      </div>
 
-        {/* RIGHT — the audit trail, always in view */}
-        <div className="lg:sticky lg:top-2">
-          <SourceHistory />
-        </div>
+      {/* quiet, higher-value alternative */}
+      <button onClick={() => go("integrations")} className="mt-3 flex w-full items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-line-soft">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent">
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 9.5 4.8 11.2a2.4 2.4 0 0 1-3.4-3.4l1.7-1.7M9.5 6.5l1.7-1.7a2.4 2.4 0 0 1 3.4 3.4l-1.7 1.7M6 10l4-4" /></svg>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-ink-900">Connect a provider</span>
+          <span className="block text-2xs text-ink-500">Pull your full history automatically over FHIR — the richest source</span>
+        </span>
+        <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>
+      </button>
+
+      {/* result cards */}
+      {job && <JobPanel job={job} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setJobId(null)} />}
+      {importCard && <JobPanel job={importCard} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setImportCard(null)} />}
+      {result && !result.ok && (
+        <div className="mt-4 rounded-md border border-bad/30 bg-bad-soft px-3.5 py-2.5 text-sm text-bad-ink">{result.msg}</div>
+      )}
+
+      {/* the audit trail */}
+      <div className="mt-8">
+        <SourceHistory />
       </div>
     </div>
   );
