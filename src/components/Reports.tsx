@@ -45,7 +45,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl animate-fade-in">
+    <div className="animate-fade-in">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900">Reports</h1>
@@ -67,7 +67,7 @@ export default function Reports() {
         <button className="font-medium text-accent" onClick={() => go("settings")}>Settings</button>.
       </p>
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-[260px_1fr]">
+      <div className="mt-6 grid gap-5 lg:grid-cols-[300px_1fr]">
         {/* list */}
         <div className="space-y-2">
           {(reports ?? []).length === 0 && (
