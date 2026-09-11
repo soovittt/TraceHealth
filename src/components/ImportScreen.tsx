@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useAction } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 
@@ -9,17 +9,19 @@ type Kind = "observation" | "medication" | "condition" | "allergy";
 // The "Add data" hub — three real ways to get records IN, alongside the
 // provider sync on Connections. Renders inside the app shell.
 export default function ImportScreen() {
-  const { patientId, setPatientId, go } = useStore();
+  const { patientId, setPatientId, go, showEvidence } = useStore();
   const ensurePatient = useMutation(api.patients.ensureMyPatient);
-  const extract = useAction(api.ingest.extractAndImport);
   const importBundle = useMutation(api.ingest.importBundle);
   const generateUploadUrl = useMutation(api.ingest.generateUploadUrl);
-  const extractImage = useAction(api.ingest.extractFromImage);
-  const extractPdf = useAction(api.ingest.extractFromPdf);
+  const requestIngest = useMutation(api.ingest.requestIngest);
 
   const [mode, setMode] = useState<Mode>("extract");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // The active AI-extraction job — watched reactively (no polling, no blocking).
+  const [jobId, setJobId] = useState<any>(null);
+  const job = useQuery(api.ingest.getIngestJob, jobId ? { jobId } : "skip");
 
   async function pid() {
     if (patientId) return patientId;
@@ -28,27 +30,6 @@ export default function ImportScreen() {
     return id;
   }
 
-  // --- AI extract (unstructured text/notes) ---
-  const [text, setText] = useState("");
-  const [filename, setFilename] = useState("Pasted record.txt");
-
-  async function runExtract() {
-    if (!text.trim()) return;
-    setBusy(true);
-    setResult(null);
-    try {
-      const c = await extract({ patientId: await pid(), filename, text });
-      const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
-      setResult({ ok: true, msg: `Extracted ${c.observations} labs · ${c.medications} meds · ${c.conditions} conditions · ${c.allergies} allergies (${total} facts).` });
-      setText("");
-    } catch (e: any) {
-      setResult({ ok: false, msg: e?.message ?? "Extraction failed." });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Upload a binary file to Convex storage and return its id.
   async function upload(file: File): Promise<any> {
     const url = await generateUploadUrl();
     const up = await fetch(url, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
@@ -56,52 +37,40 @@ export default function ImportScreen() {
     return storageId;
   }
 
-  function summarize(c: { observations: number; medications: number; conditions: number; encounters: number; allergies: number }, verb: string, src: string) {
-    const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
-    return `${verb} ${total} records from ${src} (${c.observations} labs · ${c.medications} meds · ${c.conditions} conditions · ${c.allergies} allergies).`;
-  }
+  // --- AI extract (unstructured text/notes) ---
+  const [text, setText] = useState("");
+  const [filename, setFilename] = useState("Pasted record.txt");
 
-  // --- #52 Snap-a-Lab: photo/scan → vision extraction ---
-  async function snapLab(files: FileList | null) {
-    if (!files?.length) return;
-    const file = files[0];
-    setBusy(true);
+  async function startText() {
+    if (!text.trim()) return;
     setResult(null);
-    try {
-      const storageId = await upload(file);
-      const c = await extractImage({ patientId: await pid(), filename: file.name, storageId });
-      setResult({ ok: true, msg: summarize(c, "Read", "the image") });
-    } catch (e: any) {
-      setResult({ ok: false, msg: e?.message ?? "Couldn't read the image." });
-    } finally {
-      setBusy(false);
-    }
+    const id = await requestIngest({ patientId: await pid(), source: "text", filename, text });
+    setJobId(id);
+    setText("");
   }
 
-  // A dropped file in the main uploader: PDFs go through the PDF reader, images
-  // through vision, anything text-like (txt/csv/xml/C-CDA/HL7) into the box for AI extract.
+  // A dropped file in the main uploader: PDF → PDF reader, image → vision,
+  // anything text-like (txt/csv/xml/C-CDA/HL7) → the box for review + AI extract.
   async function chooseRecord(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
     const name = file.name.toLowerCase();
     const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
     const isImage = file.type.startsWith("image/");
-    if (isPdf) {
+    if (isPdf || isImage) {
       setBusy(true);
       setResult(null);
       try {
         const storageId = await upload(file);
-        const c = await extractPdf({ patientId: await pid(), filename: file.name, storageId });
-        setResult({ ok: true, msg: summarize(c, "Read", file.name) });
+        const id = await requestIngest({ patientId: await pid(), source: isPdf ? "pdf" : "image", filename: file.name, storageId });
+        setJobId(id);
       } catch (e: any) {
-        setResult({ ok: false, msg: e?.message ?? "Couldn't read the PDF." });
+        setResult({ ok: false, msg: e?.message ?? "Upload failed." });
       } finally {
         setBusy(false);
       }
       return;
     }
-    if (isImage) return snapLab(files);
-    // text-like: load into the box so the user can review before extracting
     setFilename(file.name);
     setText(await file.text().catch(() => ""));
   }
@@ -123,6 +92,8 @@ export default function ImportScreen() {
       setBusy(false);
     }
   }
+
+  const running = !!job && ["pending", "reading", "extracting"].includes(job.status);
 
   return (
     <div className="mx-auto max-w-2xl animate-fade-in">
@@ -155,7 +126,7 @@ export default function ImportScreen() {
           <section>
             <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-7 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
               <input type="file" className="hidden" accept=".pdf,.txt,.csv,.md,.html,.xml,.cda,.ccd,.hl7,image/*" onChange={(e) => chooseRecord(e.target.files)} />
-              <div className="text-sm font-medium text-ink-800">{busy ? "Reading…" : "Drop a PDF, photo, or text file — or paste below"}</div>
+              <div className="text-sm font-medium text-ink-800">{busy ? "Uploading…" : "Drop a PDF, photo, or text file — or paste below"}</div>
               <div className="mt-1 text-xs text-ink-400">Lab reports, discharge & after-visit summaries, C-CDA/XML — AI extracts labs, meds, conditions & allergies, each cited to this document</div>
             </label>
             <textarea
@@ -165,8 +136,8 @@ export default function ImportScreen() {
               className="input mt-3 h-32 resize-none font-mono text-xs"
             />
             <div className="mt-3 flex items-center gap-3">
-              <button className="btn-primary" onClick={runExtract} disabled={busy || !text.trim()}>
-                {busy ? "Extracting…" : "Extract with AI"}
+              <button className="btn-primary" onClick={startText} disabled={running || !text.trim()}>
+                {running ? "Working…" : "Extract with AI"}
               </button>
             </div>
 
@@ -174,13 +145,15 @@ export default function ImportScreen() {
               <span className="h-px flex-1 bg-line" /> or snap a photo <span className="h-px flex-1 bg-line" />
             </div>
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-6 py-5 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-              <input type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => snapLab(e.target.files)} />
+              <input type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => chooseRecord(e.target.files)} />
               <svg viewBox="0 0 16 16" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2.5 5.5h2l1-1.5h5l1 1.5h2v7h-11zM8 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
               </svg>
-              <span className="text-sm font-medium text-ink-800">{busy ? "Reading…" : "Photograph a lab report or med list"}</span>
+              <span className="text-sm font-medium text-ink-800">Photograph a lab report or med list</span>
               <span className="text-2xs text-ink-400">GPT-4o vision reads the values</span>
             </label>
+
+            {job && <JobPanel job={job} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setJobId(null)} />}
           </section>
         )}
 
@@ -213,6 +186,76 @@ export default function ImportScreen() {
           <button className="btn-ghost" onClick={() => go("home")}>Overview</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Live status + the actual extracted records — so the user SEES what came in,
+// traced to the source document, before trusting it.
+function JobPanel({ job, onView, onSource, onDismiss }: { job: any; onView: () => void; onSource: (id: any) => void; onDismiss: () => void }) {
+  const stage: Record<string, string> = {
+    pending: "Queued…",
+    reading: job.source === "pdf" ? "Reading the PDF…" : job.source === "image" ? "Reading the image…" : "Reading the record…",
+    extracting: "Extracting structured records…",
+  };
+
+  if (job.status === "error") {
+    return (
+      <div className="mt-4 rounded-md border border-bad/30 bg-bad-soft px-3.5 py-2.5 text-sm text-bad-ink">
+        <div className="font-medium">Couldn’t read {job.filename}.</div>
+        <div className="mt-0.5 text-xs opacity-90">{job.error}</div>
+        <button className="mt-2 text-xs font-medium underline" onClick={onDismiss}>Dismiss</button>
+      </div>
+    );
+  }
+
+  if (job.status !== "ready") {
+    return (
+      <div className="mt-4 flex items-center gap-3 rounded-md border border-line bg-canvas px-3.5 py-3 text-sm text-ink-600">
+        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
+        <span>{stage[job.status] ?? "Working…"}</span>
+        <span className="mono ml-auto text-2xs text-ink-400">{job.filename}</span>
+      </div>
+    );
+  }
+
+  const c = job.counts ?? { observations: 0, medications: 0, conditions: 0, encounters: 0, allergies: 0 };
+  const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
+  const tagFor: Record<string, string> = { lab: "Lab", medication: "Rx", condition: "Dx", encounter: "Visit", allergy: "Allergy" };
+
+  return (
+    <div className="mt-4 rounded-lg border border-good-line bg-good-soft/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-ink-900">
+            {total > 0 ? `Added ${total} record${total === 1 ? "" : "s"} from ${job.filename}` : `No new records found in ${job.filename}`}
+          </div>
+          <div className="mt-0.5 text-xs text-ink-500">
+            {c.observations} labs · {c.medications} meds · {c.conditions} conditions · {c.allergies} allergies
+            {job.skipped > 0 && <span className="text-ink-400"> · {job.skipped} duplicate{job.skipped === 1 ? "" : "s"} skipped</span>}
+            {job.org ? <span className="text-ink-400"> · source: {job.org}</span> : null}
+          </div>
+        </div>
+        <button className="text-xs text-ink-400 hover:text-ink-700" onClick={onDismiss}>✕</button>
+      </div>
+
+      {job.preview?.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          {job.preview.map((p: any, i: number) => (
+            <div key={i} className="flex items-center gap-2.5 rounded-md border border-line bg-surface px-2.5 py-1.5">
+              <span className="tag shrink-0">{tagFor[p.kind] ?? "•"}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{p.text}</span>
+              {p.sub && <span className="mono shrink-0 text-2xs text-ink-400">{p.sub}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3.5 flex gap-2">
+        <button className="btn-primary px-3 py-1.5 text-xs" onClick={onView}>View in timeline →</button>
+        {job.documentId && <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => onSource(job.documentId)}>View source</button>}
+        <button className="btn-ghost px-3 py-1.5 text-xs" onClick={onDismiss}>Add more</button>
+      </div>
     </div>
   );
 }

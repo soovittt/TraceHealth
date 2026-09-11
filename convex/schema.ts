@@ -247,6 +247,34 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_patient", ["patientId"]),
 
+  // Background AI-extraction jobs. Uploading a PDF/photo/text record schedules an
+  // action that calls the model, dedups, and inserts structured facts — then flips
+  // this row to "ready" with counts + a preview. The client watches it reactively.
+  ingestJobs: defineTable({
+    patientId: v.id("patients"),
+    userId: v.optional(v.id("users")),
+    source: v.string(), // "pdf" | "image" | "text"
+    filename: v.string(),
+    storageId: v.optional(v.id("_storage")),
+    text: v.optional(v.string()),
+    status: v.string(), // "pending" | "reading" | "extracting" | "ready" | "error"
+    org: v.optional(v.string()),
+    documentId: v.optional(v.id("documents")),
+    counts: v.optional(
+      v.object({
+        observations: v.number(),
+        medications: v.number(),
+        conditions: v.number(),
+        encounters: v.number(),
+        allergies: v.number(),
+      }),
+    ),
+    skipped: v.optional(v.number()), // duplicates that already existed
+    preview: v.optional(v.array(v.object({ kind: v.string(), text: v.string(), sub: v.optional(v.string()) }))),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_patient", ["patientId"]),
+
   // Each distinct AI chat thread.
   conversations: defineTable({
     patientId: v.id("patients"),

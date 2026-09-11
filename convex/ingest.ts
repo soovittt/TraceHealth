@@ -1,9 +1,10 @@
-import { action, mutation, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { METRIC_META } from "./metrics";
-import { assertWrite } from "./authz";
+import { assertWrite, canRead } from "./authz";
 import { rebuildEvents } from "./events";
 
 // ---- real upload + OpenAI extraction path --------------------------------
@@ -13,7 +14,9 @@ export const generateUploadUrl = mutation({
   handler: async (ctx) => ctx.storage.generateUploadUrl(),
 });
 
-// Insert AI-extracted facts. Called by the extraction action.
+// Insert AI-extracted facts. Dedups against what's already in the record (and
+// within this batch) so re-uploading the same report doesn't duplicate, and
+// returns a small preview of what actually landed so the UI can show it.
 export const insertExtracted = internalMutation({
   args: {
     patientId: v.id("patients"),
@@ -60,78 +63,63 @@ export const insertExtracted = internalMutation({
       storageId: a.storageId,
       excerpt: a.excerpt.slice(0, 4000),
     });
+
+    // Dedup keys from what already exists, so a re-upload is (near) idempotent.
+    const dayOf = (t: number) => new Date(t).toISOString().slice(0, 10);
+    const q = (t: string) => ctx.db.query(t as any).withIndex("by_patient", (x: any) => x.eq("patientId", a.patientId)).collect();
+    const [exObs, exMed, exCond, exEnc, exAlg] = await Promise.all([q("observations"), q("medications"), q("conditions"), q("encounters"), q("allergies")]);
+    const seenObs = new Set(exObs.map((o: any) => `${o.code}|${dayOf(o.date)}|${o.value}`));
+    const seenMed = new Set(exMed.filter((m: any) => m.status === "active").map((m: any) => m.normalizedName));
+    const seenCond = new Set(exCond.filter((c: any) => c.status === "active").map((c: any) => c.normalizedName));
+    const seenEnc = new Set(exEnc.map((e: any) => `${e.title}|${dayOf(e.date)}`));
+    const seenAlg = new Set(exAlg.map((al: any) => al.substance.toLowerCase()));
+
+    const counts = { observations: 0, medications: 0, conditions: 0, encounters: 0, allergies: 0 };
+    let skipped = 0;
+    const preview: { kind: string; text: string; sub?: string }[] = [];
+    const peek = (kind: string, text: string, sub?: string) => { if (preview.length < 14) preview.push({ kind, text, sub }); };
+
     for (const o of a.observations) {
-      await ctx.db.insert("observations", {
-        patientId: a.patientId,
-        code: o.code,
-        label: o.label,
-        value: o.value,
-        unit: o.unit,
-        date: o.date,
-        documentId,
-        page: 1,
-        provenance: "ai_extracted",
-      });
+      const k = `${o.code}|${dayOf(o.date)}|${o.value}`;
+      if (seenObs.has(k)) { skipped++; continue; }
+      seenObs.add(k);
+      await ctx.db.insert("observations", { patientId: a.patientId, code: o.code, label: o.label, value: o.value, unit: o.unit, date: o.date, documentId, page: 1, provenance: "ai_extracted" });
+      counts.observations++;
+      peek("lab", `${o.label} ${o.value}${o.unit ? " " + o.unit : ""}`, dayOf(o.date));
     }
     for (const m of a.medications) {
-      await ctx.db.insert("medications", {
-        patientId: a.patientId,
-        name: m.name,
-        normalizedName: m.normalizedName,
-        dose: m.dose,
-        doseUnit: m.doseUnit,
-        status: "active",
-        startDate: m.startDate,
-        documentId,
-        page: 1,
-        provenance: "ai_extracted",
-      });
+      if (m.normalizedName && seenMed.has(m.normalizedName)) { skipped++; continue; }
+      if (m.normalizedName) seenMed.add(m.normalizedName);
+      await ctx.db.insert("medications", { patientId: a.patientId, name: m.name, normalizedName: m.normalizedName, dose: m.dose, doseUnit: m.doseUnit, status: "active", startDate: m.startDate, documentId, page: 1, provenance: "ai_extracted" });
+      counts.medications++;
+      peek("medication", `${m.name}${m.dose ? " " + m.dose + (m.doseUnit ? " " + m.doseUnit : "") : ""}`);
     }
     for (const c of a.conditions) {
-      await ctx.db.insert("conditions", {
-        patientId: a.patientId,
-        name: c.name,
-        normalizedName: c.normalizedName,
-        status: "active",
-        diagnosedDate: c.diagnosedDate,
-        documentId,
-        page: 1,
-        provenance: "ai_extracted",
-      });
+      if (c.normalizedName && seenCond.has(c.normalizedName)) { skipped++; continue; }
+      if (c.normalizedName) seenCond.add(c.normalizedName);
+      await ctx.db.insert("conditions", { patientId: a.patientId, name: c.name, normalizedName: c.normalizedName, status: "active", diagnosedDate: c.diagnosedDate, documentId, page: 1, provenance: "ai_extracted" });
+      counts.conditions++;
+      peek("condition", c.name, c.diagnosedDate ? dayOf(c.diagnosedDate) : undefined);
     }
     for (const e of a.encounters) {
-      await ctx.db.insert("encounters", {
-        patientId: a.patientId,
-        kind: e.kind,
-        title: e.title,
-        date: e.date,
-        summary: e.summary,
-        documentId,
-        page: 1,
-        provenance: "ai_extracted",
-      });
+      const k = `${e.title}|${dayOf(e.date)}`;
+      if (seenEnc.has(k)) { skipped++; continue; }
+      seenEnc.add(k);
+      await ctx.db.insert("encounters", { patientId: a.patientId, kind: e.kind, title: e.title, date: e.date, summary: e.summary, documentId, page: 1, provenance: "ai_extracted" });
+      counts.encounters++;
+      peek("encounter", e.title, dayOf(e.date));
     }
     for (const al of a.allergies ?? []) {
-      await ctx.db.insert("allergies", {
-        patientId: a.patientId,
-        substance: al.substance,
-        reaction: al.reaction,
-        documentId,
-        page: 1,
-        provenance: "ai_extracted",
-      });
+      const k = al.substance.toLowerCase();
+      if (seenAlg.has(k)) { skipped++; continue; }
+      seenAlg.add(k);
+      await ctx.db.insert("allergies", { patientId: a.patientId, substance: al.substance, reaction: al.reaction, documentId, page: 1, provenance: "ai_extracted" });
+      counts.allergies++;
+      peek("allergy", al.reaction ? `${al.substance} — ${al.reaction}` : al.substance);
     }
+
     await rebuildEvents(ctx, a.patientId);
-    return {
-      documentId,
-      counts: {
-        observations: a.observations.length,
-        medications: a.medications.length,
-        conditions: a.conditions.length,
-        encounters: a.encounters.length,
-        allergies: (a.allergies ?? []).length,
-      },
-    };
+    return { documentId, counts, skipped, preview, org: a.org };
   },
 });
 
@@ -149,7 +137,7 @@ const EXTRACT_SYSTEM =
   "\"encounters\":[{\"kind\":string,\"title\":string,\"date\":number,\"summary\":string|null}]," +
   "\"allergies\":[{\"substance\":string,\"reaction\":string|null}]}";
 
-// Shared sanitizer for AI-extracted records (from text OR an image).
+// Shared sanitizer for AI-extracted records (from text, an image, OR a PDF).
 function sanitizeExtract(parsed: any) {
   const clean = (arr: any) => (Array.isArray(arr) ? arr : []);
   return {
@@ -164,146 +152,175 @@ function sanitizeExtract(parsed: any) {
   };
 }
 
-// Extract structured medical events from raw record text using OpenAI.
-// OpenAI is an extractor here — never the source of truth.
-export const extractAndImport = action({
+// One OpenAI JSON call. Content is either a plain string (text records) or the
+// multimodal parts array (an image or a PDF file). OpenAI is an EXTRACTOR here —
+// never the source of truth; every value it returns is stored against its source.
+async function openaiExtract(apiKey: string, model: string, extraSystem: string, content: any) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: EXTRACT_SYSTEM + extraSystem },
+        { role: "user", content },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI error ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const json = await res.json();
+  let parsed: any = {};
+  try { parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}"); } catch { parsed = {}; }
+  return sanitizeExtract(parsed);
+}
+
+// Encode stored bytes as a base64 data URL (for GPT-4o's native PDF input).
+async function pdfDataUrl(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (bytes.length > 30 * 1024 * 1024) throw new Error("PDF is too large (30MB max). Split it and try again.");
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+  return `data:application/pdf;base64,${btoa(binary)}`;
+}
+
+// ---- background AI-extraction job ----------------------------------------
+// The deep-Convex path: requestIngest inserts a job row + schedules an action.
+// The action calls the model (text / vision / PDF), inserts structured facts,
+// and flips the row to "ready" with counts + a preview. The client watches the
+// row REACTIVELY (getIngestJob) — no blocking await, no polling.
+
+export const patchIngest = internalMutation({
+  args: {
+    jobId: v.id("ingestJobs"),
+    status: v.string(),
+    org: v.optional(v.string()),
+    documentId: v.optional(v.id("documents")),
+    counts: v.optional(v.object({ observations: v.number(), medications: v.number(), conditions: v.number(), encounters: v.number(), allergies: v.number() })),
+    skipped: v.optional(v.number()),
+    preview: v.optional(v.array(v.object({ kind: v.string(), text: v.string(), sub: v.optional(v.string()) }))),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, { jobId, ...patch }) => {
+    await ctx.db.patch(jobId, patch);
+  },
+});
+
+export const getIngestJobInternal = internalQuery({
+  args: { jobId: v.id("ingestJobs") },
+  handler: async (ctx, { jobId }) => ctx.db.get(jobId),
+});
+
+// Reactive status the client subscribes to.
+export const getIngestJob = query({
+  args: { jobId: v.id("ingestJobs") },
+  handler: async (ctx, { jobId }) => {
+    const job = await ctx.db.get(jobId);
+    if (!job || !(await canRead(ctx, job.patientId))) return null;
+    return {
+      status: job.status,
+      source: job.source,
+      filename: job.filename,
+      org: job.org ?? null,
+      documentId: job.documentId ?? null,
+      counts: job.counts ?? null,
+      skipped: job.skipped ?? 0,
+      preview: job.preview ?? [],
+      error: job.error ?? null,
+    };
+  },
+});
+
+// 1) Request → job row + scheduled action. Returns a jobId instantly.
+export const requestIngest = mutation({
   args: {
     patientId: v.id("patients"),
+    source: v.union(v.literal("pdf"), v.literal("image"), v.literal("text")),
     filename: v.string(),
-    text: v.string(),
     storageId: v.optional(v.id("_storage")),
+    text: v.optional(v.string()),
   },
-  handler: async (
-    ctx,
-    { patientId, filename, text, storageId },
-  ): Promise<{ observations: number; medications: number; conditions: number; encounters: number; allergies: number }> => {
+  handler: async (ctx, { patientId, source, filename, storageId, text }): Promise<Id<"ingestJobs">> => {
+    await assertWrite(ctx, patientId);
+    const userId = await getAuthUserId(ctx);
+    const jobId = await ctx.db.insert("ingestJobs", {
+      patientId,
+      userId: userId ?? undefined,
+      source,
+      filename,
+      storageId,
+      text,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    await ctx.scheduler.runAfter(0, internal.ingest.runIngest, { jobId });
+    return jobId;
+  },
+});
+
+// 2) Background action: read the source → model → insert → mark ready.
+export const runIngest = internalAction({
+  args: { jobId: v.id("ingestJobs") },
+  handler: async (ctx, { jobId }) => {
+    const job: any = await ctx.runQuery(internal.ingest.getIngestJobInternal, { jobId });
+    if (!job) return;
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error(
-        "OPENAI_API_KEY is not set. Run: npx convex env set OPENAI_API_KEY sk-...",
-      );
+    try {
+      if (!apiKey) throw new Error("OPENAI_API_KEY is not set. Run: npx convex env set OPENAI_API_KEY sk-...");
+      await ctx.runMutation(internal.ingest.patchIngest, { jobId, status: "reading" });
+
+      let s;
+      let excerpt: string;
+      if (job.source === "text") {
+        s = await openaiExtract(apiKey, "gpt-4o-mini", "", String(job.text ?? "").slice(0, 12000));
+        excerpt = String(job.text ?? "");
+      } else if (job.source === "image") {
+        const url = await ctx.storage.getUrl(job.storageId);
+        if (!url) throw new Error("Uploaded image not found.");
+        s = await openaiExtract(apiKey, "gpt-4o", " Read all values visible in the image (a photo or scan of a lab report, after-visit summary, or medication list). If a date is missing, use the document date.", [
+          { type: "text", text: "Extract every medical record visible in this image as JSON." },
+          { type: "image_url", image_url: { url } },
+        ]);
+        excerpt = `Extracted from image: ${job.filename}`;
+      } else {
+        const blob = await ctx.storage.get(job.storageId);
+        if (!blob) throw new Error("Uploaded PDF not found.");
+        const dataUrl = await pdfDataUrl(blob);
+        s = await openaiExtract(apiKey, "gpt-4o", " The document is a PDF medical record (lab report, discharge or after-visit summary, radiology report, or medication list) — it may be text-based or a scan. Read every page and extract every measurable value, medication, diagnosis, visit, and allergy. If a specific record has no date, use the document date on the letterhead.", [
+          { type: "text", text: "Extract every medical record in this PDF as strict JSON." },
+          { type: "file", file: { filename: job.filename, file_data: dataUrl } },
+        ]);
+        excerpt = `Extracted from PDF: ${job.filename}`;
+      }
+
+      await ctx.runMutation(internal.ingest.patchIngest, { jobId, status: "extracting" });
+      const r: any = await ctx.runMutation(internal.ingest.insertExtracted, {
+        patientId: job.patientId,
+        filename: job.filename,
+        org: s.org,
+        excerpt,
+        storageId: job.storageId,
+        observations: s.observations,
+        medications: s.medications,
+        conditions: s.conditions,
+        encounters: s.encounters,
+        allergies: s.allergies,
+      });
+
+      await ctx.runMutation(internal.ingest.patchIngest, {
+        jobId,
+        status: "ready",
+        org: r.org,
+        documentId: r.documentId,
+        counts: r.counts,
+        skipped: r.skipped,
+        preview: r.preview,
+      });
+    } catch (e: any) {
+      await ctx.runMutation(internal.ingest.patchIngest, { jobId, status: "error", error: String(e?.message ?? e).slice(0, 300) });
     }
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: EXTRACT_SYSTEM },
-          { role: "user", content: text.slice(0, 12000) },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`OpenAI error ${res.status}: ${await res.text()}`);
-    const json = await res.json();
-    let parsed: any = {};
-    try { parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}"); } catch { parsed = {}; }
-
-    const s = sanitizeExtract(parsed);
-    const result = await ctx.runMutation(internal.ingest.insertExtracted, {
-      patientId, filename, org: s.org, excerpt: text, storageId,
-      observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,
-    });
-    return result.counts;
-  },
-});
-
-// #52 — Snap-a-Lab: extract records from a PHOTO or scanned page via GPT-4o vision.
-export const extractFromImage = action({
-  args: { patientId: v.id("patients"), filename: v.string(), storageId: v.id("_storage") },
-  handler: async (
-    ctx,
-    { patientId, filename, storageId },
-  ): Promise<{ observations: number; medications: number; conditions: number; encounters: number; allergies: number }> => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not set. Run: npx convex env set OPENAI_API_KEY sk-...");
-    const url = await ctx.storage.getUrl(storageId);
-    if (!url) throw new Error("Uploaded image not found.");
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: EXTRACT_SYSTEM + " Read all values visible in the image (a photo or scan of a lab report, after-visit summary, or medication list). If a date is missing, use the document date." },
-          { role: "user", content: [
-            { type: "text", text: "Extract every medical record visible in this image as JSON." },
-            { type: "image_url", image_url: { url } },
-          ] },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`OpenAI vision error ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const json = await res.json();
-    let parsed: any = {};
-    try { parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}"); } catch { parsed = {}; }
-
-    const s = sanitizeExtract(parsed);
-    const result = await ctx.runMutation(internal.ingest.insertExtracted, {
-      patientId, filename, org: s.org, excerpt: `Extracted from image: ${filename}`, storageId,
-      observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,
-    });
-    return result.counts;
-  },
-});
-
-// PDF is the dominant medical document format (lab reports, discharge/after-visit
-// summaries, radiology). GPT-4o reads a PDF natively — it renders the pages, so this
-// path handles BOTH text-based PDFs and scanned/image-only PDFs in one shot. Same
-// sanitize → structured-insert pipeline, so every extracted fact stays source-traceable
-// back to the stored PDF.
-export const extractFromPdf = action({
-  args: { patientId: v.id("patients"), filename: v.string(), storageId: v.id("_storage") },
-  handler: async (
-    ctx,
-    { patientId, filename, storageId },
-  ): Promise<{ observations: number; medications: number; conditions: number; encounters: number; allergies: number }> => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not set. Run: npx convex env set OPENAI_API_KEY sk-...");
-
-    const blob = await ctx.storage.get(storageId);
-    if (!blob) throw new Error("Uploaded PDF not found.");
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    // ~32MB / 100-page ceiling on the model side; guard early with a clear message.
-    if (bytes.length > 30 * 1024 * 1024) throw new Error("PDF is too large (30MB max). Split it and try again.");
-    let binary = "";
-    const CHUNK = 0x8000;
-    for (let i = 0; i < bytes.length; i += CHUNK) binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
-    const dataUrl = `data:application/pdf;base64,${btoa(binary)}`;
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: EXTRACT_SYSTEM + " The document is a PDF medical record (lab report, discharge or after-visit summary, radiology report, or medication list) — it may be text-based or a scan. Read every page and extract every measurable value, medication, diagnosis, visit, and allergy. If a specific record has no date, use the document date on the letterhead." },
-          { role: "user", content: [
-            { type: "text", text: "Extract every medical record in this PDF as strict JSON." },
-            { type: "file", file: { filename, file_data: dataUrl } },
-          ] },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`OpenAI PDF error ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const json = await res.json();
-    let parsed: any = {};
-    try { parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}"); } catch { parsed = {}; }
-
-    const s = sanitizeExtract(parsed);
-    const result = await ctx.runMutation(internal.ingest.insertExtracted, {
-      patientId, filename, org: s.org, excerpt: `Extracted from PDF: ${filename}`, storageId,
-      observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,
-    });
-    return result.counts;
   },
 });
 
