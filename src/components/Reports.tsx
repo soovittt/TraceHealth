@@ -1,9 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useState, Fragment, type ReactNode } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { fmtDate } from "../lib/format";
-import { Markdown } from "./markdown";
 
 export default function Reports() {
   const { patientId, go } = useStore();
@@ -107,9 +106,9 @@ export default function Reports() {
                 <IconBtn title="Delete" danger onClick={() => { remove({ reportId: open._id }); setOpenId(null); }}><TrashIcon /></IconBtn>
               </div>
             </div>
-            <div className="max-h-[calc(100vh-14rem)] overflow-y-auto px-6 py-7">
-              <div className="mx-auto max-w-2xl text-sm text-ink-800">
-                <Markdown text={open.content} />
+            <div className="max-h-[calc(100vh-14rem)] overflow-y-auto px-6 py-8">
+              <div className="mx-auto max-w-2xl">
+                <ReportBody content={open.content} />
               </div>
             </div>
           </div>
@@ -124,6 +123,76 @@ export default function Reports() {
         )}
       </div>
     </div>
+  );
+}
+
+// Render the AI summary markdown as a formatted clinical document:
+// section headings with a rule, patient overview as a key/value grid, clean lists.
+function ReportBody({ content }: { content: string }) {
+  const lines = content.replace(/\r/g, "").split("\n");
+  const blocks: ReactNode[] = [];
+  let i = 0, key = 0;
+  const isBullet = (l?: string) => !!l && /^\s*[-*]\s+/.test(l);
+
+  while (i < lines.length) {
+    const line = lines[i].replace(/\s+$/, "");
+    if (!line.trim()) { i++; continue; }
+
+    // Document title (# …) — rendered once, quietly, above the sections.
+    let m = line.match(/^#\s+(.*)$/);
+    if (m) { blocks.push(<div key={key++} className="mb-5 text-base font-semibold text-ink-900">{inlineMd(m[1])}</div>); i++; continue; }
+
+    // Section heading: ## … OR a whole line that's just **bold**.
+    m = line.match(/^#{2,}\s+(.*)$/) || line.match(/^\*\*(.+?)\*\*:?\s*$/);
+    if (m) { blocks.push(<div key={key++} className="mb-2.5 mt-7 border-b border-line pb-1.5 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-500 first:mt-0">{inlineMd(m[1])}</div>); i++; continue; }
+
+    // A run of bullets → key/value grid if every item is "**Label:** value", else a list.
+    if (isBullet(line)) {
+      const items: string[] = [];
+      while (i < lines.length) {
+        if (isBullet(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, "").trim()); i++; continue; }
+        if (!lines[i].trim() && isBullet(lines[i + 1])) { i++; continue; }
+        break;
+      }
+      const kv = items.map((t) => t.match(/^\*\*(.+?)\*\*:?\s*(.+)$/));
+      if (kv.length > 0 && kv.every((x) => x)) {
+        blocks.push(
+          <dl key={key++} className="mb-2 grid grid-cols-[130px_1fr] gap-x-4 gap-y-2">
+            {items.map((_, idx) => (
+              <Fragment key={idx}>
+                <dt className="text-sm text-ink-500">{kv[idx]![1]}</dt>
+                <dd className="text-sm font-medium text-ink-900">{inlineMd(kv[idx]![2])}</dd>
+              </Fragment>
+            ))}
+          </dl>,
+        );
+      } else {
+        blocks.push(
+          <ul key={key++} className="mb-2 space-y-1.5">
+            {items.map((t, idx) => (
+              <li key={idx} className="flex gap-2.5 text-sm text-ink-800">
+                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-300" />
+                <span className="min-w-0 leading-relaxed">{inlineMd(t)}</span>
+              </li>
+            ))}
+          </ul>,
+        );
+      }
+      continue;
+    }
+
+    blocks.push(<p key={key++} className="mb-3 text-sm leading-relaxed text-ink-700">{inlineMd(line)}</p>);
+    i++;
+  }
+  return <div className="[&>*:first-child]:mt-0">{blocks}</div>;
+}
+
+// Minimal inline markdown: **bold** only (report content is otherwise plain).
+function inlineMd(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((p, i) =>
+    p.startsWith("**") && p.endsWith("**")
+      ? <strong key={i} className="font-semibold text-ink-900">{p.slice(2, -2)}</strong>
+      : <Fragment key={i}>{p}</Fragment>,
   );
 }
 
