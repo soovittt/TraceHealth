@@ -199,6 +199,20 @@ export default defineSchema({
     lastCounts: v.optional(v.number()), // records pulled on last sync
   }).index("by_patient", ["patientId"]),
 
+  // Recurring report schedules — a Convex cron scans these and auto-generates a
+  // health summary on cadence (daily / weekly / monthly / yearly) in the background.
+  reportSchedules: defineTable({
+    patientId: v.id("patients"),
+    userId: v.optional(v.id("users")),
+    cadence: v.string(), // "daily" | "weekly" | "monthly" | "yearly"
+    kind: v.string(), // "summary"
+    enabled: v.boolean(),
+    lastRunAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_patient", ["patientId"])
+    .index("by_enabled", ["enabled"]),
+
   // Generated reports (health summaries, chat exports) — can be written back to FHIR.
   reports: defineTable({
     patientId: v.id("patients"),
