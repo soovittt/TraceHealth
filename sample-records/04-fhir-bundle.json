@@ -1,0 +1,93 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": { "coding": [{ "code": "LDL" }], "text": "LDL Cholesterol" },
+        "effectiveDateTime": "2024-03-11",
+        "valueQuantity": { "value": 131, "unit": "mg/dL" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": { "coding": [{ "code": "HDL" }], "text": "HDL Cholesterol" },
+        "effectiveDateTime": "2024-03-11",
+        "valueQuantity": { "value": 47, "unit": "mg/dL" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": { "coding": [{ "code": "HBA1C" }], "text": "Hemoglobin A1c" },
+        "effectiveDateTime": "2024-03-11",
+        "valueQuantity": { "value": 6.4, "unit": "%" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": { "coding": [{ "code": "BP_SYS" }], "text": "Systolic Blood Pressure" },
+        "effectiveDateTime": "2024-03-11",
+        "valueQuantity": { "value": 142, "unit": "mmHg" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": { "coding": [{ "code": "BP_DIA" }], "text": "Diastolic Blood Pressure" },
+        "effectiveDateTime": "2024-03-11",
+        "valueQuantity": { "value": 90, "unit": "mmHg" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "status": "active",
+        "medicationCodeableConcept": { "text": "Metformin" },
+        "authoredOn": "2024-03-11",
+        "dosageInstruction": [{ "text": "500 mg twice daily" }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "status": "active",
+        "medicationCodeableConcept": { "text": "Atorvastatin" },
+        "authoredOn": "2024-03-11",
+        "dosageInstruction": [{ "text": "20 mg nightly" }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": { "coding": [{ "code": "active" }] },
+        "code": { "text": "Type 2 diabetes mellitus" },
+        "onsetDateTime": "2024-03-11"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "code": { "text": "Sulfa drugs" },
+        "reaction": [{ "manifestation": [{ "text": "rash" }] }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "status": "finished",
+        "class": { "code": "AMB" },
+        "type": [{ "text": "Endocrinology follow-up" }],
+        "period": { "start": "2024-03-11" }
+      }
+    }
+  ]
+}

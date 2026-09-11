@@ -1,0 +1,20 @@
+QUEST DIAGNOSTICS
+Patient: Sovit Nayak        DOB: 1990-04-12    Sex: M
+Specimen collected: 2025-08-07    Reported: 2025-08-09
+Ordering provider: Dr. Elena Ruiz, Stanford Health
+
+LIPID PANEL
+  LDL Cholesterol ............ 164 mg/dL    HIGH   (ref < 100)
+  HDL Cholesterol ............ 41 mg/dL            (ref > 40)
+  Total Cholesterol .......... 239 mg/dL    HIGH   (ref < 200)
+  Triglycerides .............. 210 mg/dL    HIGH   (ref < 150)
+
+METABOLIC
+  Hemoglobin A1c ............. 5.9 %        HIGH   (ref < 5.7)
+  Fasting Glucose ............ 108 mg/dL    HIGH   (ref 70-99)
+
+VITALS
+  Blood Pressure ............. 148 / 94 mmHg
+  Weight ..................... 198 lb
+
+ALLERGY NOTE: Penicillin — reaction: hives.

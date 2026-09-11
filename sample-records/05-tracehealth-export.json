@@ -1,0 +1,25 @@
+{
+  "export": { "source": "TraceHealth", "format": "TraceHealth normalized health record v1" },
+  "patient": { "name": "Sovit Nayak", "org": "UCSF Health" },
+  "observations": [
+    { "code": "LDL", "label": "LDL Cholesterol", "value": 118, "unit": "mg/dL", "date": "2023-05-02" },
+    { "code": "HDL", "label": "HDL Cholesterol", "value": 52, "unit": "mg/dL", "date": "2023-05-02" },
+    { "code": "TRIG", "label": "Triglycerides", "value": 160, "unit": "mg/dL", "date": "2023-05-02" },
+    { "code": "VITD", "label": "Vitamin D, 25-OH", "value": 24, "unit": "ng/mL", "date": "2023-05-02" },
+    { "code": "WEIGHT", "label": "Weight", "value": 205, "unit": "lb", "date": "2023-05-02" }
+  ],
+  "medications": [
+    { "name": "Amlodipine", "status": "active", "dose": 5, "doseUnit": "mg", "startDate": "2023-05-02" },
+    { "name": "Vitamin D3", "status": "active", "dose": 2000, "doseUnit": "IU", "startDate": "2023-05-02" }
+  ],
+  "conditions": [
+    { "name": "Essential hypertension", "status": "active", "diagnosedDate": "2022-11-14" },
+    { "name": "Vitamin D deficiency", "status": "active", "diagnosedDate": "2023-05-02" }
+  ],
+  "encounters": [
+    { "kind": "Annual physical", "title": "Annual wellness visit", "date": "2023-05-02" }
+  ],
+  "allergies": [
+    { "substance": "Latex", "reaction": "contact dermatitis" }
+  ]
+}

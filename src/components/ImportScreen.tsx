@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
+import SourceHistory from "./SourceHistory";
 
 type Mode = "extract" | "import";
 
@@ -190,10 +191,12 @@ export default function ImportScreen() {
       {patientId && (
         <div className="mt-6 flex gap-2">
           <button className="btn-secondary" onClick={() => go("timeline")}>View timeline →</button>
-          <button className="btn-ghost" onClick={() => go("history")}>History</button>
           <button className="btn-ghost" onClick={() => go("home")}>Overview</button>
         </div>
       )}
+
+      {/* the audit trail lives right here — see everything you've added */}
+      <SourceHistory />
     </div>
   );
 }

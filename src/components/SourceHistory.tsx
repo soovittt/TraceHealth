@@ -4,41 +4,31 @@ import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { fmtDate, fmtNum, provenanceLabel, year } from "../lib/format";
 
-// The audit trail: every source you've added, newest-first, with the exact
-// records it produced — so any fact can be traced back to where it came from.
-export default function History() {
+// The audit trail, embedded on the Add data page: every source you've added,
+// newest-first, with the exact records it produced — so any fact traces back
+// to where it came from. Nothing appears without a source.
+export default function SourceHistory() {
   const { patientId, go, showEvidence } = useStore();
   const sources = useQuery(api.sources.listSources, patientId ? { patientId } : "skip");
 
-  if (!sources) return <div className="mx-auto h-64 max-w-3xl animate-pulse rounded-lg bg-line-soft" />;
+  if (!sources || sources.length === 0) return null;
 
   const totalRecords = sources.reduce((n: number, s: any) => n + s.counts.total, 0);
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in">
-      <h1 className="text-2xl font-semibold text-ink-900">History</h1>
-      <p className="mt-1 text-sm text-ink-500">Every source that built your record — and exactly what each one added. Nothing appears without a trace.</p>
+    <section className="mt-8">
+      <div className="flex items-baseline justify-between">
+        <h2 className="eyebrow">Your sources</h2>
+        <span className="text-2xs text-ink-400">{sources.length} source{sources.length === 1 ? "" : "s"} · {totalRecords} record{totalRecords === 1 ? "" : "s"}</span>
+      </div>
+      <p className="mt-1 text-2xs text-ink-400">Everything that built your record — and exactly what each one added. Expand a source to trace its records.</p>
 
-      {sources.length === 0 ? (
-        <div className="mt-6 card p-6 text-center text-sm text-ink-500">
-          Nothing added yet. <button className="font-medium text-accent" onClick={() => go("import")}>Add your first record →</button>
-        </div>
-      ) : (
-        <>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-500">
-            <span>{sources.length} source{sources.length === 1 ? "" : "s"}</span>
-            <span className="text-ink-300">·</span>
-            <span>{totalRecords} record{totalRecords === 1 ? "" : "s"} total</span>
-          </div>
-
-          <div className="mt-4 space-y-2.5">
-            {sources.map((s: any) => (
-              <SourceRow key={s.documentId} s={s} onSource={() => showEvidence({ documentId: s.documentId })} onTimeline={() => go("timeline")} />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+      <div className="mt-3 space-y-2.5">
+        {sources.map((s: any) => (
+          <SourceRow key={s.documentId} s={s} onSource={() => showEvidence({ documentId: s.documentId })} onTimeline={() => go("timeline")} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -125,7 +115,6 @@ function SourceDetail({ documentId }: { documentId: any }) {
 }
 
 function viaLabel(receivedVia: string, kind: string): { label: string; tint: string; icon: string } {
-  // How the source arrived → a friendly label, tint, and glyph.
   if (receivedVia === "import" || kind === "import" || kind === "fhir")
     return { label: "Imported", tint: "bg-line-soft text-ink-500", icon: "M8 10V2m0 0L5 5m3-3 3 3M3 11.5v1a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 12.5v-1" };
   if (receivedVia === "manual" || kind === "manual")
@@ -134,6 +123,5 @@ function viaLabel(receivedVia: string, kind: string): { label: string; tint: str
     return { label: "Synced", tint: "bg-accent-soft text-accent", icon: "M13 7A5 5 0 0 0 4 4.5M3 9a5 5 0 0 0 9 2.5M12 2.5V5H9.5M4 13.5V11h2.5" };
   if (receivedVia === "demo")
     return { label: "Demo", tint: "bg-line-soft text-ink-500", icon: "M8 2l1.5 3.5L13 6l-2.5 2.5L11 12 8 10.5 5 12l.5-3.5L3 6l3.5-.5z" };
-  // upload (AI-extracted PDF / photo / text)
   return { label: "AI extracted", tint: "bg-accent-soft text-accent", icon: "M8 2l1.1 3.1L12.2 6.2 9.1 7.3 8 10.4 6.9 7.3 3.8 6.2 6.9 5.1z" };
 }
