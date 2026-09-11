@@ -413,6 +413,10 @@ export const compare = query({
           to: b.value,
           changePct: pct(a.value, b.value),
           direction: meta.direction,
+          refHigh: meta.refHigh ?? null,
+          refLow: meta.refLow ?? null,
+          fromDate: a.date,
+          toDate: b.date,
         };
       })
       .filter(Boolean);
