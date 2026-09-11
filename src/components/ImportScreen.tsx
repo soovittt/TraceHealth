@@ -166,10 +166,7 @@ export default function ImportScreen() {
 
         {/* secondary: paste text */}
         <div className="mt-2 rounded-lg bg-canvas px-3 py-2.5">
-          <div className="flex items-center justify-between">
-            <span className="eyebrow">Or paste text</span>
-            <span className="text-2xs text-ink-400">GPT-4o extracts & cites each fact</span>
-          </div>
+          <span className="eyebrow">Or paste text</span>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
