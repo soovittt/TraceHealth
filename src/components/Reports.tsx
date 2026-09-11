@@ -107,7 +107,7 @@ export default function Reports() {
               </div>
             </div>
             <div className="max-h-[calc(100vh-14rem)] overflow-y-auto px-6 py-8">
-              <div className="mx-auto max-w-2xl">
+              <div className="mx-auto max-w-3xl">
                 <ReportBody content={open.content} />
               </div>
             </div>
@@ -145,6 +145,46 @@ function ReportBody({ content }: { content: string }) {
     // Section heading: ## … OR a whole line that's just **bold**.
     m = line.match(/^#{2,}\s+(.*)$/) || line.match(/^\*\*(.+?)\*\*:?\s*$/);
     if (m) { blocks.push(<div key={key++} className="mb-2.5 mt-7 border-b border-line pb-1.5 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-500 first:mt-0">{inlineMd(m[1])}</div>); i++; continue; }
+
+    // A markdown table → a real, styled table.
+    if (line.trim().startsWith("|")) {
+      const rows: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) { rows.push(lines[i].trim()); i++; }
+      const cells = (r: string) => r.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+      const isSep = (r: string) => /-/.test(r) && /^[\s|:-]+$/.test(r);
+      let header: string[] | null = null;
+      const body: string[][] = [];
+      for (const r of rows) {
+        if (isSep(r)) continue;
+        if (header === null) header = cells(r);
+        else body.push(cells(r));
+      }
+      if (header) {
+        blocks.push(
+          <div key={key++} className="mb-3 overflow-x-auto rounded-md border border-line">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-canvas">
+                  {header.map((h, ci) => (
+                    <th key={ci} className="whitespace-nowrap px-2.5 py-1.5 text-left text-2xs font-semibold uppercase tracking-wide text-ink-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {body.map((row, ri) => (
+                  <tr key={ri} className="border-t border-line-soft">
+                    {row.map((c, ci) => (
+                      <td key={ci} className={`whitespace-nowrap px-2.5 py-1.5 align-middle ${ci === 0 ? "font-medium text-ink-900" : "text-ink-700"}`}>{inlineMd(c)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+      }
+      continue;
+    }
 
     // A run of bullets → key/value grid if every item is "**Label:** value", else a list.
     if (isBullet(line)) {
