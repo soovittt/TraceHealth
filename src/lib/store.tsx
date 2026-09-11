@@ -5,6 +5,7 @@ export type View =
   | "landing"
   | "auth"
   | "import"
+  | "settings"
   | "home"
   | "timeline"
   | "metric"
@@ -66,6 +67,7 @@ const VIEW_TO_PATH: Record<View, string> = {
   landing: "/",
   auth: "/signin",
   import: "/import",
+  settings: "/settings",
   home: "/dashboard",
   timeline: "/timeline",
   metric: "/trends",
@@ -98,6 +100,7 @@ function parsePath(pathname: string): { view: View; authMode?: AuthMode; shareTo
     case "/signin": return { view: "auth", authMode: "signIn" };
     case "/signup": return { view: "auth", authMode: "signUp" };
     case "/import": return { view: "import" };
+    case "/settings": return { view: "settings" };
     case "/dashboard": return { view: "home" };
     case "/timeline": return { view: "timeline" };
     case "/trends": return { view: "metric" };

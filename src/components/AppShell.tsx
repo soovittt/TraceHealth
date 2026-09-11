@@ -17,6 +17,7 @@ import Conflicts from "./Conflicts";
 import Integrations from "./Integrations";
 import Reports from "./Reports";
 import ImportScreen from "./ImportScreen";
+import Settings from "./Settings";
 import NeedsAttention from "./NeedsAttention";
 import AssistantChat from "./AssistantChat";
 import DoctorView from "./DoctorView";
@@ -149,6 +150,16 @@ export default function AppShell() {
               <div className="truncate text-2xs text-ink-400">{me?.email ?? (isDemo ? "read-only demo" : "")}</div>
             </div>
             <button
+              onClick={() => go("settings")}
+              title="Settings"
+              className={`grid h-6 w-6 shrink-0 place-items-center rounded hover:bg-line-soft hover:text-ink-700 ${view === "settings" ? "text-ink-900" : "text-ink-400"}`}
+            >
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+                <path d="M13 8a5 5 0 0 0-.09-.9l1.2-.94-1-1.73-1.42.55a5 5 0 0 0-1.56-.9L9.9 1.6h-2l-.23 1.48a5 5 0 0 0-1.56.9L4.7 3.43l-1 1.73 1.2.94A5 5 0 0 0 4.8 8c0 .3.03.6.09.9l-1.2.94 1 1.73 1.42-.55c.46.38 1 .69 1.56.9l.23 1.48h2l.23-1.48c.57-.21 1.1-.52 1.56-.9l1.42.55 1-1.73-1.2-.94c.06-.3.09-.6.09-.9z" />
+              </svg>
+            </button>
+            <button
               onClick={exit}
               title={me ? "Sign out" : "Exit demo"}
               className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-400 hover:bg-line-soft hover:text-ink-700"
@@ -211,6 +222,7 @@ export default function AppShell() {
               {view === "conflicts" && <Conflicts />}
               {view === "integrations" && <Integrations />}
               {view === "import" && <ImportScreen />}
+              {view === "settings" && <Settings />}
               {view === "signals" && <NeedsAttention />}
               {view === "chat" && (
                 <div className="mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-lg border border-line bg-surface">
