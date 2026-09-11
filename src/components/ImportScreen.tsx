@@ -114,14 +114,18 @@ export default function ImportScreen() {
   const anyBusy = busy || running;
 
   return (
-    <div className="mx-auto max-w-2xl animate-fade-in pb-10">
+    <div className="mx-auto max-w-6xl animate-fade-in pb-10">
       <div className="eyebrow">Add data</div>
       <h1 className="mt-1.5 text-2xl font-semibold text-ink-900">Bring your records in</h1>
       <p className="mt-1 text-sm text-ink-500">Drop any medical file — we read it, structure it, and trace every fact to its source.</p>
 
+      {/* two columns fill the width: add on the left, your record grows on the right */}
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
+       {/* LEFT — the import surface */}
+       <div>
       {/* ONE import surface — a single smart dropzone that accepts anything, with
           paste as a secondary affordance. No tabs, no classifying your file. */}
-      <div className="mt-5 card p-2">
+      <div className="card p-2">
         <label
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
@@ -164,7 +168,7 @@ export default function ImportScreen() {
       </div>
 
       {/* quiet, higher-value alternative */}
-      <button onClick={() => go("integrations")} className="mt-3 flex w-full items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-line-soft">
+      <button onClick={() => go("integrations")} className="mt-3 flex w-full items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-left transition-colors hover:bg-line-soft focus:outline-none">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent">
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 9.5 4.8 11.2a2.4 2.4 0 0 1-3.4-3.4l1.7-1.7M9.5 6.5l1.7-1.7a2.4 2.4 0 0 1 3.4 3.4l-1.7 1.7M6 10l4-4" /></svg>
         </span>
@@ -181,10 +185,12 @@ export default function ImportScreen() {
       {result && !result.ok && (
         <div className="mt-4 rounded-md border border-bad/30 bg-bad-soft px-3.5 py-2.5 text-sm text-bad-ink">{result.msg}</div>
       )}
+       </div>
 
-      {/* the audit trail */}
-      <div className="mt-8">
-        <SourceHistory />
+       {/* RIGHT — the audit trail, filling the width and always in view */}
+       <div className="lg:sticky lg:top-2">
+         <SourceHistory />
+       </div>
       </div>
     </div>
   );

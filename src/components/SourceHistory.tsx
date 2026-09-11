@@ -39,7 +39,7 @@ export default function SourceHistory() {
       </div>
       <p className="mt-1 text-2xs text-ink-400">Everything that built your record. Expand a source to trace its records.</p>
 
-      <div className="mt-3 space-y-2.5">
+      <div className="mt-3 space-y-2.5 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto lg:pr-1">
         {sources.map((s: any) => (
           <SourceRow key={s.documentId} s={s} onSource={() => showEvidence({ documentId: s.documentId })} onTimeline={() => go("timeline")} />
         ))}
