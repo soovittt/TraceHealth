@@ -79,7 +79,8 @@ export default function AppShell() {
       <nav className="flex h-full w-[216px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface">
         <button
           className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 text-left hover:bg-line-soft"
-          onClick={() => go("landing")}
+          onClick={() => go("home")}
+          title="Go to Overview"
         >
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand text-brand-fg">
             <Mark className="h-4 w-4" color="currentColor" />
