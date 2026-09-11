@@ -21,6 +21,8 @@ export default function ImportScreen() {
   // The active AI-extraction job — watched reactively (no polling, no blocking).
   const [jobId, setJobId] = useState<any>(null);
   const job = useQuery(api.ingest.getIngestJob, jobId ? { jobId } : "skip");
+  // The last deterministic import, shown with the same preview card as the AI path.
+  const [importCard, setImportCard] = useState<any>(null);
 
   async function pid() {
     if (patientId) return patientId;
@@ -82,9 +84,17 @@ export default function ImportScreen() {
     setResult(null);
     try {
       const raw = await f.text();
-      const c = await importBundle({ patientId: await pid(), filename: f.name, text: raw });
-      const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
-      setResult({ ok: true, msg: `Imported ${total} records from ${f.name} (${c.observations} labs · ${c.medications} meds · ${c.conditions} conditions · ${c.allergies} allergies).` });
+      const c: any = await importBundle({ patientId: await pid(), filename: f.name, text: raw });
+      setImportCard({
+        status: "ready",
+        source: "import",
+        filename: f.name,
+        org: c.org,
+        counts: { observations: c.observations, medications: c.medications, conditions: c.conditions, encounters: c.encounters, allergies: c.allergies },
+        skipped: c.skipped ?? 0,
+        preview: c.preview ?? [],
+        documentId: c.documentId,
+      });
     } catch (e: any) {
       setResult({ ok: false, msg: e?.message ?? "Import failed." });
     } finally {
@@ -166,6 +176,7 @@ export default function ImportScreen() {
               <div className="mt-1 text-xs text-ink-400">A FHIR R4 Bundle or a TraceHealth JSON export — imported exactly, no AI</div>
             </label>
             <p className="mt-2 text-2xs text-ink-400">Tip: export your record from another TraceHealth account (or any FHIR system) and re-import it here — the round-trip is lossless.</p>
+            {importCard && <JobPanel job={importCard} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setImportCard(null)} />}
           </section>
         )}
       </div>
@@ -219,31 +230,61 @@ function JobPanel({ job, onView, onSource, onDismiss }: { job: any; onView: () =
   const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
   const tagFor: Record<string, string> = { lab: "Lab", medication: "Rx", condition: "Dx", encounter: "Visit", allergy: "Allergy" };
 
+  // Count chips (only the non-zero types) + preview grouped by type so the card
+  // reads like a mini record, not a flat dump.
+  const chips: [string, number][] = [["labs", c.observations], ["meds", c.medications], ["conditions", c.conditions], ["visits", c.encounters], ["allergies", c.allergies]];
+  const groupOrder = ["lab", "medication", "condition", "encounter", "allergy"];
+  const groupLabel: Record<string, string> = { lab: "Labs", medication: "Medications", condition: "Conditions", encounter: "Visits", allergy: "Allergies" };
+  const groups = groupOrder
+    .map((k) => [k, (job.preview ?? []).filter((p: any) => p.kind === k)] as [string, any[]])
+    .filter(([, items]) => items.length > 0);
+
   return (
     <div className="mt-4 rounded-lg border border-good-line bg-good-soft/40 p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-sm font-semibold text-ink-900">
             {total > 0 ? `Added ${total} record${total === 1 ? "" : "s"} from ${job.filename}` : `No new records found in ${job.filename}`}
           </div>
           <div className="mt-0.5 text-xs text-ink-500">
-            {c.observations} labs · {c.medications} meds · {c.conditions} conditions · {c.allergies} allergies
-            {job.skipped > 0 && <span className="text-ink-400"> · {job.skipped} duplicate{job.skipped === 1 ? "" : "s"} skipped</span>}
-            {job.org ? <span className="text-ink-400"> · source: {job.org}</span> : null}
+            {job.skipped > 0 && <span className="text-ink-400">{job.skipped} duplicate{job.skipped === 1 ? "" : "s"} skipped · </span>}
+            {job.org ? <span>source: {job.org}</span> : null}
           </div>
         </div>
         <button className="text-xs text-ink-400 hover:text-ink-700" onClick={onDismiss}>✕</button>
       </div>
 
-      {job.preview?.length > 0 && (
-        <div className="mt-3 space-y-1.5">
-          {job.preview.map((p: any, i: number) => (
-            <div key={i} className="flex items-center gap-2.5 rounded-md border border-line bg-surface px-2.5 py-1.5">
-              <span className="tag shrink-0">{tagFor[p.kind] ?? "•"}</span>
-              <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{p.text}</span>
-              {p.sub && <span className="mono shrink-0 text-2xs text-ink-400">{p.sub}</span>}
+      {/* count chips */}
+      {total > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {chips.filter(([, n]) => n > 0).map(([label, n]) => (
+            <span key={label} className="rounded-full border border-line bg-surface px-2 py-0.5 text-2xs font-medium text-ink-600">
+              {n} {label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* records grouped by type */}
+      {groups.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {groups.map(([kind, items]) => (
+            <div key={kind}>
+              <div className="eyebrow mb-1">{groupLabel[kind]}</div>
+              <div className="space-y-1">
+                {items.map((p: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2.5 rounded-md border border-line bg-surface px-2.5 py-1.5">
+                    <span className="tag shrink-0">{tagFor[p.kind] ?? "•"}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{p.text}</span>
+                    {p.sub && <span className="mono shrink-0 text-2xs text-ink-400">{p.sub}</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
+          {total > (job.preview?.length ?? 0) && (
+            <div className="text-2xs text-ink-400">+ {total - (job.preview?.length ?? 0)} more in your timeline</div>
+          )}
         </div>
       )}
 

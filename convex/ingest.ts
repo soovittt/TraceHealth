@@ -406,8 +406,33 @@ export const importBundle = mutation({
     for (const e of encs) await ctx.db.insert("encounters", { ...base, kind: e.kind, title: e.title, date: e.date ?? Date.now() });
     for (const a of algs) await ctx.db.insert("allergies", { ...base, substance: a.substance, reaction: a.reaction });
 
+    // Build a preview of what landed so the UI can show the actual records,
+    // not just a count — same shape the AI-extraction path returns.
+    const dayStr = (t?: number) => (t ? new Date(t).toISOString().slice(0, 10) : undefined);
+    const preview: { kind: string; text: string; sub?: string }[] = [];
+    const peek = (kind: string, text: string, sub?: string) => { if (preview.length < 16) preview.push({ kind, text, sub }); };
+    for (const o of obs) if (typeof o.value === "number" && !isNaN(o.value)) peek("lab", `${o.label} ${o.value}${o.unit ? " " + o.unit : ""}`, dayStr(o.date));
+    for (const m of meds) {
+      let d = m.dose, u = m.doseUnit;
+      if (d === undefined && m.doseText) { const mm = String(m.doseText).match(/([\d.]+)\s*(\w+)?/); if (mm) { d = parseFloat(mm[1]); u = mm[2]; } }
+      peek("medication", `${m.name}${d ? ` ${d}${u ? " " + u : ""}` : ""}`);
+    }
+    for (const c of conds) peek("condition", c.name, dayStr(c.date));
+    for (const e of encs) peek("encounter", e.title, dayStr(e.date));
+    for (const a of algs) peek("allergy", a.reaction ? `${a.substance} — ${a.reaction}` : a.substance);
+
     await rebuildEvents(ctx, patientId);
-    return { observations: obs.length, medications: meds.length, conditions: conds.length, encounters: encs.length, allergies: algs.length };
+    return {
+      observations: obs.length,
+      medications: meds.length,
+      conditions: conds.length,
+      encounters: encs.length,
+      allergies: algs.length,
+      skipped: 0,
+      preview,
+      documentId,
+      org: String(data?.patient?.org ?? "Imported record"),
+    };
   },
 });
 
