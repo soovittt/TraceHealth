@@ -10,7 +10,6 @@ export default function Reports() {
   const reports = useQuery(api.reports.listReports, patientId ? { patientId } : "skip");
   const generate = useAction(api.reports.generateSummaryReport);
   const remove = useMutation(api.reports.removeReport);
-  const writeFhir = useAction(api.reports.writeReportToFhir);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -31,26 +30,13 @@ export default function Reports() {
       setBusy(null);
     }
   }
-  async function toFhir(id: any) {
-    setBusy(`f:${id}`);
-    setMsg(null);
-    try {
-      const r = await writeFhir({ reportId: id });
-      setMsg(r.message);
-    } catch (e: any) {
-      setMsg(e?.message ?? "Write failed.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
     <div className="animate-fade-in">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900">Reports</h1>
           <p className="mt-1 text-sm text-ink-500">
-            A clinical summary of your record — export it, print it, or write it back to your provider. Schedule auto-reports in{" "}
+            A clinical summary of your record — copy, print, or export it. Schedule auto-reports in{" "}
             <button className="font-medium text-accent" onClick={() => go("settings")}>Settings</button>.
           </p>
         </div>
@@ -92,7 +78,6 @@ export default function Reports() {
                         <span className="mono">{fmtDate(r.createdAt)}</span>
                         <span className="text-ink-300">·</span>
                         <span>{kindLabel(r.kind)}</span>
-                        {r.fhirStatus === "written" && <span className="h-1.5 w-1.5 rounded-full bg-good" title="Written to provider" />}
                       </span>
                     </span>
                   </button>
@@ -113,16 +98,12 @@ export default function Reports() {
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-2xs text-ink-400">
                     <span className="mono">{fmtDate(open.createdAt)}</span>
                     <span className="rounded bg-line-soft px-1.5 py-0.5 font-medium text-ink-500">{kindLabel(open.kind)}</span>
-                    {open.fhirStatus === "written" && <span className="rounded bg-good-soft px-1.5 py-0.5 font-medium text-good-ink">Written to provider</span>}
                   </div>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <IconBtn title="Copy" onClick={() => navigator.clipboard?.writeText(open.content)}><CopyIcon /></IconBtn>
                 <IconBtn title="Print" onClick={() => printReport(open)}><PrintIcon /></IconBtn>
-                <button className="btn-secondary px-2.5 py-1 text-xs" onClick={() => toFhir(open._id)} disabled={busy === `f:${open._id}`}>
-                  {busy === `f:${open._id}` ? "Writing…" : "Write to provider"}
-                </button>
                 <IconBtn title="Delete" danger onClick={() => { remove({ reportId: open._id }); setOpenId(null); }}><TrashIcon /></IconBtn>
               </div>
             </div>
