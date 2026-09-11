@@ -253,6 +253,60 @@ export const extractFromImage = action({
   },
 });
 
+// PDF is the dominant medical document format (lab reports, discharge/after-visit
+// summaries, radiology). GPT-4o reads a PDF natively — it renders the pages, so this
+// path handles BOTH text-based PDFs and scanned/image-only PDFs in one shot. Same
+// sanitize → structured-insert pipeline, so every extracted fact stays source-traceable
+// back to the stored PDF.
+export const extractFromPdf = action({
+  args: { patientId: v.id("patients"), filename: v.string(), storageId: v.id("_storage") },
+  handler: async (
+    ctx,
+    { patientId, filename, storageId },
+  ): Promise<{ observations: number; medications: number; conditions: number; encounters: number; allergies: number }> => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY is not set. Run: npx convex env set OPENAI_API_KEY sk-...");
+
+    const blob = await ctx.storage.get(storageId);
+    if (!blob) throw new Error("Uploaded PDF not found.");
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    // ~32MB / 100-page ceiling on the model side; guard early with a clear message.
+    if (bytes.length > 30 * 1024 * 1024) throw new Error("PDF is too large (30MB max). Split it and try again.");
+    let binary = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+    const dataUrl = `data:application/pdf;base64,${btoa(binary)}`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: EXTRACT_SYSTEM + " The document is a PDF medical record (lab report, discharge or after-visit summary, radiology report, or medication list) — it may be text-based or a scan. Read every page and extract every measurable value, medication, diagnosis, visit, and allergy. If a specific record has no date, use the document date on the letterhead." },
+          { role: "user", content: [
+            { type: "text", text: "Extract every medical record in this PDF as strict JSON." },
+            { type: "file", file: { filename, file_data: dataUrl } },
+          ] },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI PDF error ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const json = await res.json();
+    let parsed: any = {};
+    try { parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}"); } catch { parsed = {}; }
+
+    const s = sanitizeExtract(parsed);
+    const result = await ctx.runMutation(internal.ingest.insertExtracted, {
+      patientId, filename, org: s.org, excerpt: `Extracted from PDF: ${filename}`, storageId,
+      observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,
+    });
+    return result.counts;
+  },
+});
+
 // ---- structured re-import (closes the export→import loop) -----------------
 // Accepts a TraceHealth JSON export OR a FHIR R4 Bundle and inserts records
 // directly — no AI needed, deterministic. Provenance "imported".

@@ -15,6 +15,7 @@ export default function ImportScreen() {
   const importBundle = useMutation(api.ingest.importBundle);
   const generateUploadUrl = useMutation(api.ingest.generateUploadUrl);
   const extractImage = useAction(api.ingest.extractFromImage);
+  const extractPdf = useAction(api.ingest.extractFromPdf);
 
   const [mode, setMode] = useState<Mode>("extract");
   const [busy, setBusy] = useState(false);
@@ -47,6 +48,19 @@ export default function ImportScreen() {
     }
   }
 
+  // Upload a binary file to Convex storage and return its id.
+  async function upload(file: File): Promise<any> {
+    const url = await generateUploadUrl();
+    const up = await fetch(url, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+    const { storageId } = await up.json();
+    return storageId;
+  }
+
+  function summarize(c: { observations: number; medications: number; conditions: number; encounters: number; allergies: number }, verb: string, src: string) {
+    const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
+    return `${verb} ${total} records from ${src} (${c.observations} labs · ${c.medications} meds · ${c.conditions} conditions · ${c.allergies} allergies).`;
+  }
+
   // --- #52 Snap-a-Lab: photo/scan → vision extraction ---
   async function snapLab(files: FileList | null) {
     if (!files?.length) return;
@@ -54,17 +68,42 @@ export default function ImportScreen() {
     setBusy(true);
     setResult(null);
     try {
-      const url = await generateUploadUrl();
-      const up = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-      const { storageId } = await up.json();
+      const storageId = await upload(file);
       const c = await extractImage({ patientId: await pid(), filename: file.name, storageId });
-      const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
-      setResult({ ok: true, msg: `Read ${total} records from the image (${c.observations} labs · ${c.medications} meds · ${c.conditions} conditions · ${c.allergies} allergies).` });
+      setResult({ ok: true, msg: summarize(c, "Read", "the image") });
     } catch (e: any) {
       setResult({ ok: false, msg: e?.message ?? "Couldn't read the image." });
     } finally {
       setBusy(false);
     }
+  }
+
+  // A dropped file in the main uploader: PDFs go through the PDF reader, images
+  // through vision, anything text-like (txt/csv/xml/C-CDA/HL7) into the box for AI extract.
+  async function chooseRecord(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
+    const isImage = file.type.startsWith("image/");
+    if (isPdf) {
+      setBusy(true);
+      setResult(null);
+      try {
+        const storageId = await upload(file);
+        const c = await extractPdf({ patientId: await pid(), filename: file.name, storageId });
+        setResult({ ok: true, msg: summarize(c, "Read", file.name) });
+      } catch (e: any) {
+        setResult({ ok: false, msg: e?.message ?? "Couldn't read the PDF." });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (isImage) return snapLab(files);
+    // text-like: load into the box so the user can review before extracting
+    setFilename(file.name);
+    setText(await file.text().catch(() => ""));
   }
 
   // --- deterministic bundle import (FHIR / TraceHealth JSON) ---
@@ -115,9 +154,9 @@ export default function ImportScreen() {
         {mode === "extract" && (
           <section>
             <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-7 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-              <input type="file" className="hidden" accept=".txt,.csv,.md,.html" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { setFilename(f.name); setText(await f.text().catch(() => "")); } }} />
-              <div className="text-sm font-medium text-ink-800">Choose a text file, or paste below</div>
-              <div className="mt-1 text-xs text-ink-400">AI extracts labs, meds, conditions & allergies — every fact cited to this document</div>
+              <input type="file" className="hidden" accept=".pdf,.txt,.csv,.md,.html,.xml,.cda,.ccd,.hl7,image/*" onChange={(e) => chooseRecord(e.target.files)} />
+              <div className="text-sm font-medium text-ink-800">{busy ? "Reading…" : "Drop a PDF, photo, or text file — or paste below"}</div>
+              <div className="mt-1 text-xs text-ink-400">Lab reports, discharge & after-visit summaries, C-CDA/XML — AI extracts labs, meds, conditions & allergies, each cited to this document</div>
             </label>
             <textarea
               value={text}
