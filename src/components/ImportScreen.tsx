@@ -3,8 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 
-type Mode = "extract" | "import" | "manual";
-type Kind = "observation" | "medication" | "condition" | "allergy";
+type Mode = "extract" | "import";
 
 // The "Add data" hub — three real ways to get records IN, alongside the
 // provider sync on Connections. Renders inside the app shell.
@@ -109,7 +108,6 @@ export default function ImportScreen() {
         {([
           ["extract", "Paste / upload a record"],
           ["import", "Import a data file"],
-          ["manual", "Add manually"],
         ] as [Mode, string][]).map(([m, label]) => (
           <button
             key={m}
@@ -170,8 +168,6 @@ export default function ImportScreen() {
             <p className="mt-2 text-2xs text-ink-400">Tip: export your record from another TraceHealth account (or any FHIR system) and re-import it here — the round-trip is lossless.</p>
           </section>
         )}
-
-        {mode === "manual" && <ManualForm getPid={pid} onResult={setResult} busy={busy} setBusy={setBusy} />}
       </div>
 
       {result && (
@@ -257,99 +253,5 @@ function JobPanel({ job, onView, onSource, onDismiss }: { job: any; onView: () =
         <button className="btn-ghost px-3 py-1.5 text-xs" onClick={onDismiss}>Add more</button>
       </div>
     </div>
-  );
-}
-
-function ManualForm({
-  getPid,
-  onResult,
-  busy,
-  setBusy,
-}: {
-  getPid: () => Promise<any>;
-  onResult: (r: { ok: boolean; msg: string }) => void;
-  busy: boolean;
-  setBusy: (b: boolean) => void;
-}) {
-  const addManual = useMutation(api.ingest.addManualRecord);
-  const [kind, setKind] = useState<Kind>("observation");
-  const [f, setF] = useState<Record<string, string>>({ date: new Date().toISOString().slice(0, 10) });
-  const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
-
-  async function submit() {
-    setBusy(true);
-    try {
-      const date = f.date ? new Date(f.date).getTime() : undefined;
-      const args: any = { patientId: await getPid(), kind, date };
-      if (kind === "observation") { args.code = f.code || undefined; args.label = f.label || undefined; args.value = f.value ? Number(f.value) : undefined; args.unit = f.unit || undefined; }
-      if (kind === "medication") { args.name = f.name; args.dose = f.dose ? Number(f.dose) : undefined; args.doseUnit = f.doseUnit || undefined; args.status = f.status || "active"; }
-      if (kind === "condition") { args.name = f.name; args.status = f.status || "active"; }
-      if (kind === "allergy") { args.substance = f.substance; args.reaction = f.reaction || undefined; }
-      await addManual(args);
-      onResult({ ok: true, msg: `Added ${kind}. It's in your record now.` });
-      setF({ date: new Date().toISOString().slice(0, 10) });
-    } catch (e: any) {
-      onResult({ ok: false, msg: e?.message ?? "Could not add record." });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const Field = ({ label, k, type = "text", ph = "" }: { label: string; k: string; type?: string; ph?: string }) => (
-    <label className="block">
-      <span className="text-2xs font-medium uppercase tracking-wide text-ink-400">{label}</span>
-      <input type={type} value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} placeholder={ph} className="input mt-1 py-1.5 text-sm" />
-    </label>
-  );
-
-  return (
-    <section className="card p-4">
-      <div className="flex gap-1.5">
-        {(["observation", "medication", "condition", "allergy"] as Kind[]).map((k) => (
-          <button key={k} onClick={() => setKind(k)} className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors ${kind === k ? "bg-brand text-brand-fg" : "border border-line text-ink-600 hover:bg-line-soft"}`}>
-            {k === "observation" ? "Lab" : k}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {kind === "observation" && (<>
-          <Field label="Code" k="code" ph="LDL" />
-          <Field label="Name" k="label" ph="LDL Cholesterol" />
-          <Field label="Value" k="value" type="number" ph="120" />
-          <Field label="Unit" k="unit" ph="mg/dL" />
-          <Field label="Date" k="date" type="date" />
-        </>)}
-        {kind === "medication" && (<>
-          <Field label="Name" k="name" ph="Atorvastatin" />
-          <Field label="Dose" k="dose" type="number" ph="20" />
-          <Field label="Unit" k="doseUnit" ph="mg" />
-          <StatusField f={f} set={set} options={["active", "stopped"]} />
-          <Field label="Started" k="date" type="date" />
-        </>)}
-        {kind === "condition" && (<>
-          <Field label="Name" k="name" ph="Type 2 diabetes" />
-          <StatusField f={f} set={set} options={["active", "resolved"]} />
-          <Field label="Diagnosed" k="date" type="date" />
-        </>)}
-        {kind === "allergy" && (<>
-          <Field label="Substance" k="substance" ph="Penicillin" />
-          <Field label="Reaction" k="reaction" ph="Rash" />
-        </>)}
-      </div>
-
-      <button className="btn-primary mt-4" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add to record"}</button>
-    </section>
-  );
-}
-
-function StatusField({ f, set, options }: { f: Record<string, string>; set: (k: string, v: string) => void; options: string[] }) {
-  return (
-    <label className="block">
-      <span className="text-2xs font-medium uppercase tracking-wide text-ink-400">Status</span>
-      <select value={f.status ?? options[0]} onChange={(e) => set("status", e.target.value)} className="input mt-1 py-1.5 text-sm capitalize">
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </label>
   );
 }
