@@ -4,6 +4,8 @@ import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import SourceHistory from "./SourceHistory";
 
+type Tab = "upload" | "history";
+
 
 // The "Add data" hub — three real ways to get records IN, alongside the
 // provider sync on Connections. Renders inside the app shell.
@@ -16,7 +18,11 @@ export default function ImportScreen() {
 
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
+  const [tab, setTab] = useState<Tab>("upload");
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const sources = useQuery(api.sources.listSources, patientId ? { patientId } : "skip");
+  const sourceCount = sources?.length ?? 0;
 
   // The active AI-extraction job — watched reactively (no polling, no blocking).
   const [jobId, setJobId] = useState<any>(null);
@@ -114,17 +120,28 @@ export default function ImportScreen() {
   const anyBusy = busy || running;
 
   return (
-    <div className="mx-auto max-w-6xl animate-fade-in pb-10">
+    <div className="mx-auto max-w-3xl animate-fade-in pb-10">
       <div className="eyebrow">Add data</div>
       <h1 className="mt-1.5 text-2xl font-semibold text-ink-900">Bring your records in</h1>
       <p className="mt-1 text-sm text-ink-500">Drop any medical file — we read it, structure it, and trace every fact to its source.</p>
 
-      {/* two columns fill the width: add on the left, your record grows on the right */}
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-       {/* LEFT — the import surface */}
-       <div>
+      {/* top-level tabs — add records, or browse the source history */}
+      <div className="mt-5 inline-flex gap-1 rounded-lg border border-line bg-canvas p-1">
+        {([["upload", "Upload"], ["history", "History"]] as [Tab, string][]).map(([t, label]) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${tab === t ? "bg-surface text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-800"}`}
+          >
+            {label}{t === "history" && sourceCount > 0 ? <span className="ml-1.5 text-ink-400">{sourceCount}</span> : null}
+          </button>
+        ))}
+      </div>
+
+      {tab === "upload" && (
+       <div className="mt-4">
       {/* ONE import surface — a single smart dropzone that accepts anything, with
-          paste as a secondary affordance. No tabs, no classifying your file. */}
+          paste as a secondary affordance. No classifying your file. */}
       <div className="card p-2">
         <label
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -186,12 +203,13 @@ export default function ImportScreen() {
         <div className="mt-4 rounded-md border border-bad/30 bg-bad-soft px-3.5 py-2.5 text-sm text-bad-ink">{result.msg}</div>
       )}
        </div>
+      )}
 
-       {/* RIGHT — the audit trail, filling the width and always in view */}
-       <div className="lg:sticky lg:top-2">
-         <SourceHistory />
-       </div>
-      </div>
+      {tab === "history" && (
+        <div className="mt-5">
+          <SourceHistory />
+        </div>
+      )}
     </div>
   );
 }
