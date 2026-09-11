@@ -190,6 +190,7 @@ export default function ImportScreen() {
       {patientId && (
         <div className="mt-6 flex gap-2">
           <button className="btn-secondary" onClick={() => go("timeline")}>View timeline →</button>
+          <button className="btn-ghost" onClick={() => go("history")}>History</button>
           <button className="btn-ghost" onClick={() => go("home")}>Overview</button>
         </div>
       )}
