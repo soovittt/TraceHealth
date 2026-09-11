@@ -106,97 +106,107 @@ export default function ImportScreen() {
   const running = !!job && ["pending", "reading", "extracting"].includes(job.status);
 
   return (
-    <div className="mx-auto max-w-2xl animate-fade-in">
-      <div className="eyebrow">Add data</div>
-      <h1 className="mt-1.5 text-xl font-semibold text-ink-900">Bring records into your history</h1>
-      <p className="mt-1 text-sm text-ink-500">
-        The richest source is a live provider —{" "}
-        <button className="font-medium text-accent" onClick={() => go("integrations")}>connect one on Connections</button>. You can also add data by hand here.
-      </p>
-
-      {/* mode tabs */}
-      <div className="mt-5 flex gap-1 rounded-lg border border-line bg-canvas p-1">
-        {([
-          ["extract", "Paste / upload a record"],
-          ["import", "Import a data file"],
-        ] as [Mode, string][]).map(([m, label]) => (
-          <button
-            key={m}
-            onClick={() => { setMode(m); setResult(null); }}
-            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === m ? "bg-surface text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-800"}`}
-          >
-            {label}
-          </button>
-        ))}
+    <div className="mx-auto max-w-5xl animate-fade-in">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="eyebrow">Add data</div>
+          <h1 className="mt-1.5 text-xl font-semibold text-ink-900">Bring records into your history</h1>
+          <p className="mt-1 text-sm text-ink-500">
+            The richest source is a live provider —{" "}
+            <button className="font-medium text-accent" onClick={() => go("integrations")}>connect one on Connections</button>.
+          </p>
+        </div>
+        {patientId && (
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => go("timeline")}>View timeline →</button>
+            <button className="btn-ghost" onClick={() => go("home")}>Overview</button>
+          </div>
+        )}
       </div>
 
-      <div className="mt-4">
-        {mode === "extract" && (
-          <section>
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-7 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-              <input type="file" className="hidden" accept=".pdf,.txt,.csv,.md,.html,.xml,.cda,.ccd,.hl7,image/*" onChange={(e) => chooseRecord(e.target.files)} />
-              <div className="text-sm font-medium text-ink-800">{busy ? "Uploading…" : "Drop a PDF, photo, or text file — or paste below"}</div>
-              <div className="mt-1 text-xs text-ink-400">Lab reports, discharge & after-visit summaries, C-CDA/XML — AI extracts labs, meds, conditions & allergies, each cited to this document</div>
-            </label>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Quest Diagnostics, 2025-08-07. LDL 164 mg/dL. HbA1c 5.7%. Penicillin allergy — rash."
-              className="input mt-3 h-32 resize-none font-mono text-xs"
-            />
-            <div className="mt-3 flex items-center gap-3">
-              <button className="btn-primary" onClick={startText} disabled={running || !text.trim()}>
-                {running ? "Working…" : "Extract with AI"}
+      {/* two-pane workspace: add on the left, watch your record grow on the right */}
+      <div className="mt-6 grid items-start gap-8 lg:grid-cols-[1.3fr_1fr]">
+        {/* LEFT — input methods */}
+        <div>
+          <div className="flex gap-1 rounded-lg border border-line bg-canvas p-1">
+            {([
+              ["extract", "Paste / upload a record"],
+              ["import", "Import a data file"],
+            ] as [Mode, string][]).map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setResult(null); }}
+                className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === m ? "bg-surface text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-800"}`}
+              >
+                {label}
               </button>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            {mode === "extract" && (
+              <section>
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-6 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
+                  <input type="file" className="hidden" accept=".pdf,.txt,.csv,.md,.html,.xml,.cda,.ccd,.hl7,image/*" onChange={(e) => chooseRecord(e.target.files)} />
+                  <div className="text-sm font-medium text-ink-800">{busy ? "Uploading…" : "Drop a PDF, photo, or text file"}</div>
+                  <div className="mt-1 text-xs text-ink-400">Lab reports, discharge & after-visit summaries, C-CDA/XML — each fact cited to its source</div>
+                </label>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="…or paste text here — e.g. Quest Diagnostics, 2025-08-07. LDL 164 mg/dL. HbA1c 5.7%. Penicillin allergy — rash."
+                  className="input mt-3 h-24 resize-none font-mono text-xs"
+                />
+                <div className="mt-3 flex items-center gap-3">
+                  <button className="btn-primary" onClick={startText} disabled={running || !text.trim()}>
+                    {running ? "Working…" : "Extract with AI"}
+                  </button>
+                  <span className="text-2xs text-ink-400">GPT-4o reads labs, meds, conditions & allergies</span>
+                </div>
+
+                <div className="my-4 flex items-center gap-3 text-2xs text-ink-400">
+                  <span className="h-px flex-1 bg-line" /> or snap a photo <span className="h-px flex-1 bg-line" />
+                </div>
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-6 py-4 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
+                  <input type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => chooseRecord(e.target.files)} />
+                  <svg viewBox="0 0 16 16" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2.5 5.5h2l1-1.5h5l1 1.5h2v7h-11zM8 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+                  </svg>
+                  <span className="text-sm font-medium text-ink-800">Photograph a lab report or med list</span>
+                </label>
+
+                {job && <JobPanel job={job} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setJobId(null)} />}
+              </section>
+            )}
+
+            {mode === "import" && (
+              <section>
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-8 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
+                  <input type="file" className="hidden" accept=".json,.fhir" onChange={(e) => importFile(e.target.files)} />
+                  <svg viewBox="0 0 16 16" className="h-6 w-6 text-ink-300" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 10V2m0 0L5 5m3-3 3 3M3 11.5v1a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 12.5v-1" />
+                  </svg>
+                  <div className="mt-2 text-sm font-medium text-ink-800">{busy ? "Importing…" : "Choose a FHIR Bundle or JSON export"}</div>
+                  <div className="mt-1 text-xs text-ink-400">A FHIR R4 Bundle or a TraceHealth JSON export — imported exactly, no AI</div>
+                </label>
+                <p className="mt-2 text-2xs text-ink-400">Tip: export from another TraceHealth account (or any FHIR system) and re-import — the round-trip is lossless.</p>
+                {importCard && <JobPanel job={importCard} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setImportCard(null)} />}
+              </section>
+            )}
+          </div>
+
+          {result && (
+            <div className={`mt-4 rounded-md border px-3.5 py-2.5 text-sm ${result.ok ? "border-good-line bg-good-soft text-good-ink" : "border-bad/30 bg-bad-soft text-bad-ink"}`}>
+              {result.msg}
             </div>
+          )}
+        </div>
 
-            <div className="my-4 flex items-center gap-3 text-2xs text-ink-400">
-              <span className="h-px flex-1 bg-line" /> or snap a photo <span className="h-px flex-1 bg-line" />
-            </div>
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-6 py-5 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-              <input type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => chooseRecord(e.target.files)} />
-              <svg viewBox="0 0 16 16" className="h-5 w-5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2.5 5.5h2l1-1.5h5l1 1.5h2v7h-11zM8 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-              </svg>
-              <span className="text-sm font-medium text-ink-800">Photograph a lab report or med list</span>
-              <span className="text-2xs text-ink-400">GPT-4o vision reads the values</span>
-            </label>
-
-            {job && <JobPanel job={job} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setJobId(null)} />}
-          </section>
-        )}
-
-        {mode === "import" && (
-          <section>
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-9 text-center transition-colors hover:border-accent-line hover:bg-line-soft">
-              <input type="file" className="hidden" accept=".json,.fhir" onChange={(e) => importFile(e.target.files)} />
-              <svg viewBox="0 0 16 16" className="h-6 w-6 text-ink-300" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 10V2m0 0L5 5m3-3 3 3M3 11.5v1a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 13 12.5v-1" />
-              </svg>
-              <div className="mt-2 text-sm font-medium text-ink-800">{busy ? "Importing…" : "Choose a FHIR Bundle or JSON export"}</div>
-              <div className="mt-1 text-xs text-ink-400">A FHIR R4 Bundle or a TraceHealth JSON export — imported exactly, no AI</div>
-            </label>
-            <p className="mt-2 text-2xs text-ink-400">Tip: export your record from another TraceHealth account (or any FHIR system) and re-import it here — the round-trip is lossless.</p>
-            {importCard && <JobPanel job={importCard} onView={() => go("timeline")} onSource={(id: any) => showEvidence({ documentId: id })} onDismiss={() => setImportCard(null)} />}
-          </section>
-        )}
+        {/* RIGHT — the audit trail, always in view */}
+        <div className="lg:sticky lg:top-2">
+          <SourceHistory />
+        </div>
       </div>
-
-      {result && (
-        <div className={`mt-4 rounded-md border px-3.5 py-2.5 text-sm ${result.ok ? "border-good-line bg-good-soft text-good-ink" : "border-bad/30 bg-bad-soft text-bad-ink"}`}>
-          {result.msg}
-        </div>
-      )}
-
-      {patientId && (
-        <div className="mt-6 flex gap-2">
-          <button className="btn-secondary" onClick={() => go("timeline")}>View timeline →</button>
-          <button className="btn-ghost" onClick={() => go("home")}>Overview</button>
-        </div>
-      )}
-
-      {/* the audit trail lives right here — see everything you've added */}
-      <SourceHistory />
     </div>
   );
 }

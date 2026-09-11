@@ -11,19 +11,35 @@ export default function SourceHistory() {
   const { patientId, go, showEvidence } = useStore();
   const sources = useQuery(api.sources.listSources, patientId ? { patientId } : "skip");
 
-  if (!sources || sources.length === 0) return null;
+  if (!sources) {
+    return (
+      <section>
+        <h2 className="eyebrow">Your sources</h2>
+        <div className="mt-2 h-40 animate-pulse rounded-lg bg-line-soft" />
+      </section>
+    );
+  }
+
+  if (sources.length === 0) {
+    return (
+      <section>
+        <h2 className="eyebrow">Your sources</h2>
+        <div className="mt-2 card p-4 text-sm text-ink-400">Nothing added yet. Add a record on the left and it’ll appear here, traced to its source.</div>
+      </section>
+    );
+  }
 
   const totalRecords = sources.reduce((n: number, s: any) => n + s.counts.total, 0);
 
   return (
-    <section className="mt-8">
+    <section>
       <div className="flex items-baseline justify-between">
         <h2 className="eyebrow">Your sources</h2>
         <span className="text-2xs text-ink-400">{sources.length} source{sources.length === 1 ? "" : "s"} · {totalRecords} record{totalRecords === 1 ? "" : "s"}</span>
       </div>
-      <p className="mt-1 text-2xs text-ink-400">Everything that built your record — and exactly what each one added. Expand a source to trace its records.</p>
+      <p className="mt-1 text-2xs text-ink-400">Everything that built your record. Expand a source to trace its records.</p>
 
-      <div className="mt-3 space-y-2.5">
+      <div className="mt-3 space-y-2.5 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:pr-1">
         {sources.map((s: any) => (
           <SourceRow key={s.documentId} s={s} onSource={() => showEvidence({ documentId: s.documentId })} onTimeline={() => go("timeline")} />
         ))}
