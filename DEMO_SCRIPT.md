@@ -1,167 +1,114 @@
-# TraceHealth — full demo script (read-it-off, ~5 min)
+# TraceHealth — demo script (SMART sandbox + AI in every tab)
 
-Everything end to end: what to click **[DO]**, what to say **[SAY]**, and the exact AI questions. Aim ~5 min — the problem statement matters, don't rush it.
+Read-it-off. **[DO]** = what to click. **[SAY]** = what to say. Data comes from the **SMART Health IT sandbox** — no file imports. Tour: **Overview → Timeline → Trends → Compare → Review → Reports → Ask AI**, each with an AI moment.
 
----
-
-## PRE-FLIGHT (before you hit record)
-- **[DO]** Sign in as yourself. Record is already wiped (empty Overview).
-- **[DO]** Open Finder at `~/Desktop/tracehealth-sample-records`. You'll use, in order:
-  1. `05-tracehealth-export.json`  (older baseline — 2022–2023)
-  2. `04-fhir-bundle.json`  (a hospital FHIR export — 2024)
-  3. `03-labcorp-lab-report.pdf`  (a PDF lab report — the AI showcase)
-- **[DO]** Maximize the browser (1280–1440 wide). Turn on Do Not Disturb. Hide the bookmarks bar.
-- **[DO]** Do one silent dry-run of the two imports + the PDF so the timing feels smooth on the real take.
-- If you need to re-clean between takes: run `npx convex run patients:wipeByEmail '{"email":"sovitnayak1258@gmail.com"}'`.
+**Pre-flight:** Signed in, record empty. Maximize browser, Do Not Disturb on. If you need to re-clean between takes: `npx convex run patients:wipeByEmail '{"email":"sovitnayak1258@gmail.com"}'`.
 
 ---
 
-## 1 · THE PROBLEM  (0:00–0:50)  — screen: empty Overview
+## 1 · THE PROBLEM  (0:00–0:45) — empty Overview
 **[SAY]**
-> "Here's a problem everyone has and nobody's solved. Your health data is the most important data about you — and it's scattered everywhere. Every clinic, every lab, every hospital keeps its own copy, in its own format, on a portal you log into once and never again. There's no single place that has *all* of you.
+> "Your health data is the most important data about you — and it's scattered across every clinic, lab, and hospital you've ever been to, each in its own system, on a portal you'll never log into again. Nothing has all of you.
 >
-> And it gets worse the moment you move. You change cities, you switch insurance, you **travel to another country** — and the new doctor there knows *nothing* about you. Your old records don't follow you, because those systems will never talk to each other. So you start from zero, every time.
+> It gets worse when you move — a new city, a new insurer, a new *country*. The new doctor knows nothing about you, because those systems will never talk to each other. And even when you have your records, it's a pile of PDFs and lab codes you can't read.
 >
-> Even when you *do* have your records, it's a pile of PDFs and lab codes you can't actually read. And handing them to a new doctor? You're forwarding email attachments and hoping.
->
-> TraceHealth fixes all of that. It's one health record that you own — it pulls in everything, from anywhere, makes it understandable, and lets you hand it to any doctor in seconds. Let me show you, starting from nothing."
+> TraceHealth is one record you own — it pulls everything in, makes it understandable with AI on every screen, and lets you hand it to any doctor in seconds. Let me show you from nothing."
 
----
-
-## 2 · BRING IT ALL IN  (0:50–1:50)  — Add data
-**[DO]** Click **Add data** in the sidebar. You're on the **Upload** tab with one dropzone.
-
+## 2 · CONNECT A PROVIDER  (0:45–1:20) — Connections
+**[DO]** Click **Connections**. Click **Connect** on the **SMART sandbox** provider.
 **[SAY]**
-> "First I bring my history in. It doesn't matter what format someone gave me — one dropzone takes all of it and figures out the type automatically."
-
-**[DO]** Drag **`05-tracehealth-export.json`** onto the dropzone. A preview card appears.
+> "I connect a provider over **SMART on FHIR** — the same standard real hospital systems use. I authorize, pick the patient…"
+**[DO]** Complete the sandbox login/patient pick. Records sync in.
 **[SAY]**
-> "This is a structured export from another system — it imports instantly, exactly, no AI. You can see what came in: labs, meds, conditions, an allergy — each grouped and traced to its source."
+> "…and TraceHealth pulls the whole record — labs, medications, conditions, allergies, visits — and normalizes all of it. That sync runs in the background on Convex; when it's done, my record is live."
 
-**[DO]** Drag **`04-fhir-bundle.json`**.
-**[SAY]**
-> "This is a **FHIR bundle** — the hospital interoperability standard. Same thing, imported cleanly."
-
-**[DO]** Drag **`03-labcorp-lab-report.pdf`**. Point at the status line as it changes.
-**[SAY]**
-> "And this is the interesting one — a **PDF lab report**. There's no structured data in a PDF, so the AI reads it. Watch the status: *Reading the PDF… Extracting… Added.* That extraction is running as a **background job on Convex** — I'm not frozen, the UI is streaming the status live, and when it's done the records just appear."
-
-**[DO]** Click the **History** tab (top of Add data).
-**[SAY]**
-> "And this is the part I care most about — the audit trail. Every source I've added, and if I expand one, the *exact* records it produced, each tagged with where it came from — imported, AI-extracted, whatever. Nothing shows up in my record without a source. No made-up data."
-
----
-
-## 3 · ONE UNDERSTANDABLE RECORD  (1:50–2:40)
+## 3 · OVERVIEW  (1:20–1:55) — the cockpit + AI ask bar
 **[DO]** Click **Overview**.
 **[SAY]**
-> "Now all of that is one record. Up top, **Needs your attention** — the app already flagged what's off: my LDL is above target, my HbA1c is high, blood pressure's up, and a recheck is overdue. That's computed automatically from my data — I didn't ask for it."
+> "Here's everything at a glance. **Needs your attention** — the app already flagged what's off: labs above target, an overdue recheck — computed automatically. Key metrics, active meds, recent activity, all on one screen."
+**[DO]** Click the **Ask AI** bar at the top of Overview and type:
+> **What should a new doctor know about me?**
+**[SAY]**
+> "And there's an AI right here — grounded in *my* record. Ask it what a new doctor should know, and it summarizes my problems, meds, and allergies — with sources."
 
+## 4 · TIMELINE  (1:55–2:25) — AI explains any event
 **[DO]** Click **Timeline**.
 **[SAY]**
-> "Everything I've ever added, one dated feed across every provider — labs, visits, meds. Scroll and it just keeps loading; that's real cursor pagination in Convex, not loading everything at once."
-
-**[DO]** Click **Trends**, then open **LDL Cholesterol**.
+> "Every visit and lab across every provider, one dated feed — and it paginates as I scroll, straight from Convex."
+**[DO]** Click a **visit** row → the evidence panel opens → click **Explain this visit with AI**.
 **[SAY]**
-> "Here's the magic of merging sources. Three different clinics reported my cholesterol with different codes and different units — TraceHealth collapses them into *one* metric, so I get a single trend line over years instead of three disconnected numbers. You can see it climbing."
+> "Click any event and I can ask the AI to explain it in plain language — what was recorded that day, what it means, what to watch — cited back to the source."
 
-**[DO]** Click **Compare**. Pick two years (e.g. an early year → latest).
+## 5 · TRENDS  (2:25–3:00) — AI explains a metric, with real sources
+**[DO]** Click **Trends** → open **LDL Cholesterol** (or A1c).
 **[SAY]**
-> "And I can put any two points in time side by side — what got worse, what improved, new diagnoses, new medications. This is the view a stack of PDFs can never give you."
+> "Different clinics report the same test with different codes and units — TraceHealth collapses them into one metric and one trend line over years."
+**[DO]** Click **Explain this**.
+**[SAY]**
+> "And 'Explain this' gives me a plain-language read of the number — what's normal, why it matters — pulled from **trusted medical sources via Firecrawl**, not invented. Grounded, with references."
 
+## 6 · COMPARE  (3:00–3:30) — AI explains a whole time period
+**[DO]** Click **Compare**. Pick an early year → the latest year.
+**[SAY]**
+> "Then-versus-now between any two points in time — what got worse, what improved, new diagnoses, new meds."
+**[DO]** Click **Explain this period with AI**.
+**[SAY]**
+> "One click sends that whole comparison to the AI — it tells me what changed and what's concerning, in language I actually understand."
+
+## 7 · REVIEW  (3:30–4:00) — AI helps reconcile
 **[DO]** Click **Review**.
 **[SAY]**
-> "Combining records across providers also surfaces problems a single portal can't — dose conflicts between clinics, and old medications that were never marked as stopped. I reconcile those here."
-**[DO]** Click **Yes** or **No** on one "still active?" med.
+> "Combining providers surfaces things a single portal can't — dose conflicts between clinics, and old meds never marked stopped. I reconcile them here."
+**[DO]** Click **Explain with AI** (top right).
 **[SAY]**
-> "One tap and my record is clean and trustworthy — which matters for what's next."
-
----
-
-## 4 · ASK YOUR RECORD ANYTHING  (2:40–3:40)  — Ask AI (⌘J)
-**[DO]** Press **⌘J** (or click **Ask AI**). The assistant opens.
-
-**[DO]** Ask question 1 — type:
-> **What should a new doctor know about me?**
-
-**[SAY]** (while it runs)
-> "This is an AI grounded entirely in *my* record. Watch the reasoning trace — it's a real tool-calling agent: it pulls my active problems, my medications, my allergies, my recent labs. And notice it's not guessing — every claim links back to the source document it came from."
-
-**[DO]** Ask question 2 — type:
-> **Is my LDL cholesterol getting better or worse, and what should I do?**
-
+> "And the AI helps me prioritize — which conflicts matter, what could go wrong, what to fix first."
+**[DO]** Click **Yes/No** on one "still active?" med.
 **[SAY]**
-> "It reads my actual trend, tells me the direction, and renders my *real* chart inline — not a stock image, my data."
+> "One tap and my record is clean and trustworthy."
 
-**[DO]** Ask question 3 — type:
-> **What does an HbA1c of 6.4% mean and should I be worried?**
-
-**[SAY]**
-> "For general medical questions like this, it doesn't make things up either — it pulls a cited answer from **trusted medical sources via Firecrawl**, and shows me the source. So I get real explanation, grounded, with references."
-
-*(Optional 4th if time: **"What are all my allergies, and is anything I take a problem?"** — shows the safety check.)*
-
----
-
-## 5 · TURN IT INTO A REPORT  (3:40–4:15)  — Reports + Settings
+## 8 · REPORTS  (4:00–4:35) — AI writes the document
 **[DO]** Click **Reports** → **Generate summary**.
 **[SAY]**
-> "I can turn my whole record into a formatted clinical summary — sections, a key-value patient overview, my medications, a trends table. A real one-page document, generated from my data."
+> "This turns my whole record into a formatted clinical summary — patient overview, active problems, medications, a trends table — all generated by AI from my data."
+**[DO]** (Optional) ⚙ **Settings → Automated reports → Weekly** on, then back to **Reports**.
+**[SAY]**
+> "And I can schedule it — a **Convex cron** generates a fresh summary weekly in the background, even when I never open the app."
 
-**[DO]** Click the **⚙ gear (Settings)** in the bottom-left → **Automated reports** → toggle **Weekly** on.
+## 9 · ASK AI  (4:35–5:15) — the full agent
+**[DO]** Click **Ask AI** (or ⌘J). Ask, one at a time:
+> **Is my LDL cholesterol getting better or worse, and what should I do?**
 **[SAY]**
-> "And I can put that on autopilot. Turn on a weekly summary, and a **Convex cron job** generates it in the background on schedule — even when I never open the app. Daily, weekly, monthly, yearly — my choice."
-**[DO]** Click back to **Reports** — the weekly summary is already in the list.
+> "This is the full assistant — a tool-calling agent. Watch the reasoning trace: it pulls my trend, checks reference ranges, and renders my *real* chart inline."
+**[DO]** Then ask:
+> **What does an HbA1c of 6.4% mean and should I be worried?**
 **[SAY]**
-> "See — it already generated the first one."
+> "For general medical questions it cites trusted sources — real explanation, never made-up numbers. Every answer traces back to where it came from."
+
+## 10 · CLOSE  (5:15–5:30)
+**[SAY]**
+> "So that's TraceHealth. Connect any provider, and everything you have — from any clinic, any country — becomes one record you own, understandable, with AI on every screen, and one link away from any doctor. Your health should travel with you. Now it does."
 
 ---
 
-## 6 · THE TRAVEL PAYOFF — SHARE WITH ANY DOCTOR  (4:15–4:50)
-**[DO]** Click **Share with clinician** (bottom-left). A modal shows a link.
-**[SAY]**
-> "Now the moment that matters. I'm in a new city — a new *country* — and I need to see a doctor who's never met me."
+## AI moment in each tab (cheat sheet)
+| Tab | AI |
+|---|---|
+| **Overview** | Ask-AI bar → "What should a new doctor know about me?" |
+| **Timeline** | click event → **Explain this visit with AI** |
+| **Trends** | **Explain this** (Firecrawl-cited metric explanation) |
+| **Compare** | **Explain this period with AI** |
+| **Review** | **Explain with AI** (prioritize conflicts) |
+| **Reports** | **Generate summary** (AI-written document) |
+| **Ask AI** | full tool-calling agent + citations |
 
-**[DO]** Click **Preview snapshot** (opens a clean read-only view in a new tab).
-**[SAY]**
-> "Instead of asking them to integrate with my old country's system — which never happens — I just send this link. Read-only, no account, no portal. Allergies and red flags right at the top, then my medications, conditions, longitudinal trends, and recent history — and every single item links to its source record so they can verify it.
->
-> And on the link *they* open, the doctor even gets a record-scoped AI and an auto-generated **SBAR brief** for triage — but that's for them, not cluttering my preview."
-
----
-
-## 7 · IT'S PORTABLE — YOU OWN IT  (4:50–5:15)  — Export
-**[DO]** Click **Export record** → the export dialog opens.
-**[SAY]**
-> "And it's mine to take anywhere. I choose what to include and the format — a formatted **Document** I can save as a PDF, a spreadsheet, JSON, or a **FHIR** bundle any hospital system on earth can import — with a live preview so I know exactly what I'm sending."
-**[DO]** Switch format to **Document**, glance at the preview, then optionally click **Open & print**.
-**[SAY]**
-> "Clean, formatted, standards-based. My record is never locked inside one clinic or one country again."
-
----
-
-## 8 · CLOSE  (5:15–5:30)
-**[SAY]**
-> "So that's TraceHealth. Every health record you have — from any clinic, any country, any format — pulled into one place you own, made understandable, with an AI that actually knows your history, and one link that hands it to any doctor in seconds.
->
-> Your health should travel with you. Now it does."
-
----
-
-## APPENDIX — the AI questions (copy/paste)
+## AI questions (copy/paste)
 1. `What should a new doctor know about me?`
 2. `Is my LDL cholesterol getting better or worse, and what should I do?`
 3. `What does an HbA1c of 6.4% mean and should I be worried?`
-4. `What are all my allergies, and is anything I take a problem?`  *(optional)*
-5. `Is my kidney function declining?`  *(optional — eGFR trend)*
+4. `What are all my allergies, and is anything I take a problem?` (optional)
 
-## APPENDIX — tech name-drops (for judges, sprinkle naturally)
-- **Convex**: real-time reactive queries, **background jobs** (PDF extraction, exports), **cron** (scheduled reports), file storage, cursor pagination, full-text search.
-- **OpenAI**: PDF/vision extraction + the grounded tool-calling agent.
-- **Firecrawl**: cited answers from trusted medical sources.
-- **FHIR / SMART on FHIR**: import and export in the healthcare interoperability standard.
+## Tech name-drops (for judges)
+Convex — real-time reactive UI, background jobs (FHIR sync, extraction), cron (scheduled reports), pagination, search. OpenAI — the grounded agent + explanations. Firecrawl — cited trusted sources. SMART on FHIR — the provider connection + normalization.
 
-## APPENDIX — recording
-- macOS `⇧⌘5` → Record (free). Nicer: **Screen Studio** (auto zoom-to-cursor). Free power tool: **OBS**.
-- Pause ~1s after every screen change. During the PDF read, keep talking — the "background job" line covers the wait.
-- If you fumble, just pause and re-say the line — cut it later.
+## Recording
+macOS `⇧⌘5` (free) or Screen Studio / OBS. Pause ~1s after each screen change. Keep talking during the SMART sync so the wait is covered.
