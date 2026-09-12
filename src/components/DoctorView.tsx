@@ -29,7 +29,7 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
   // link it's the URL token; in owner-preview we mint one so the chat works too.
   const createShare = useMutation(api.mutations.createShare);
   const [chatToken, setChatToken] = useState<string | null>(shareToken ?? null);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   useEffect(() => {
     if (shareToken) { setChatToken(shareToken); return; }
     if (preview && resolvedId && !chatToken) createShare({ patientId: resolvedId }).then((t) => setChatToken(t)).catch(() => {});
