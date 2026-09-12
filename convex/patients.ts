@@ -1,4 +1,5 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
+import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // The signed-in user (name + email), or null.
@@ -40,6 +41,20 @@ const PATIENT_TABLES: Record<string, string> = {
   events: "by_patient_date", // no plain by_patient index — use the compound one (prefix on patientId)
 };
 
+async function clearPatient(ctx: any, patientId: any): Promise<number> {
+  let cleared = 0;
+  for (const [table, index] of Object.entries(PATIENT_TABLES)) {
+    const rows = await ctx.db.query(table).withIndex(index, (q: any) => q.eq("patientId", patientId)).collect();
+    for (const r of rows) {
+      if (r.storageId) { try { await ctx.storage.delete(r.storageId); } catch { /* orphan blob, ignore */ } }
+      await ctx.db.delete(r._id);
+      cleared++;
+    }
+  }
+  await ctx.db.patch(patientId, { recordsFrom: undefined, orgCount: undefined });
+  return cleared;
+}
+
 export const resetMyRecord = mutation({
   args: {},
   handler: async (ctx) => {
@@ -47,17 +62,22 @@ export const resetMyRecord = mutation({
     if (!userId) throw new Error("Not signed in");
     const patient = await ctx.db.query("patients").withIndex("by_user", (q) => q.eq("userId", userId)).first();
     if (!patient) return { cleared: 0 };
+    return { cleared: await clearPatient(ctx, patient._id) };
+  },
+});
+
+// Admin: wipe a record by account email. Runnable from the CLI:
+//   npx convex run patients:wipeByEmail '{"email":"you@example.com"}'
+export const wipeByEmail = internalMutation({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const users = await ctx.db.query("users").collect();
+    const user = users.find((u: any) => (u.email ?? "").toLowerCase() === email.toLowerCase());
+    if (!user) return { ok: false, reason: "no user with that email", cleared: 0 };
+    const patients = await ctx.db.query("patients").withIndex("by_user", (q) => q.eq("userId", user._id)).collect();
     let cleared = 0;
-    for (const [table, index] of Object.entries(PATIENT_TABLES)) {
-      const rows = await ctx.db.query(table as any).withIndex(index as any, (q: any) => q.eq("patientId", patient._id)).collect();
-      for (const r of rows) {
-        if ((r as any).storageId) { try { await ctx.storage.delete((r as any).storageId); } catch { /* orphan blob, ignore */ } }
-        await ctx.db.delete(r._id);
-        cleared++;
-      }
-    }
-    await ctx.db.patch(patient._id, { recordsFrom: undefined, orgCount: undefined });
-    return { cleared };
+    for (const p of patients) cleared += await clearPatient(ctx, p._id);
+    return { ok: true, patients: patients.length, cleared };
   },
 });
 
