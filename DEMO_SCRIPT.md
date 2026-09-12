@@ -1,85 +1,54 @@
-# TraceHealth — 3-minute demo script
+# TraceHealth — 3-minute demo (travel / cross-border angle)
 
-**Goal:** show the whole loop from an empty record → aggregated, source-traced health record → AI, reports, clinician share, export. Emphasize **Convex** (real-time, background jobs, crons, file storage, search) and the sponsor stack (OpenAI, Firecrawl).
+**Hook:** You take your passport everywhere — but not your health record. Different countries, different clinics, different systems that don't talk to each other. TraceHealth makes your record travel with you: one record you own, that you can hand to any doctor, anywhere, in seconds.
 
-**Before recording — reset to a clean slate:**
-1. Sign in as yourself.
-2. Sidebar → ⚙ **Settings → Danger zone → Clear records** (confirm). The record empties instantly.
-3. Have the Finder folder open: `~/Desktop/tracehealth-sample-records` (04-fhir-bundle.json, 03-labcorp-lab-report.pdf, 01-quest-lab-report.txt).
-4. Optional: pre-open a second browser tab you'll use for the clinician share.
+**Pre-flight:** Sign in → record is empty (already wiped). Keep `~/Desktop/tracehealth-sample-records` open (04-fhir-bundle.json, 03-labcorp-lab-report.pdf, 01-quest-lab-report.txt). Dry-run once so the PDF timing feels smooth.
 
-Total spoken ~430 words ≈ 3:00 at a natural pace. Timings are targets.
+~430 words ≈ 3:00.
 
 ---
 
-## 0:00–0:20 — The problem (Overview, empty state)
-> "Your health records are scattered across every clinic, portal, and PDF you've ever had. TraceHealth pulls them into **one** record you actually own — and can ask questions of."
+## 0:00–0:25 · The problem
+> "When you travel, your health follows you — but your records don't. Every country, every clinic keeps its own file, in its own format, on a portal you'll never log into again. So when you land somewhere new and need a doctor, they start from zero."
 
-*(On screen: the empty Overview — "Your record is empty. Bring your history in.")*
+*(On screen: empty Overview.)*
 
-> "Let's build one from scratch."
+> "TraceHealth fixes that. One record, from everywhere, that you actually own — and can share instantly."
 
----
+## 0:25–1:05 · Bring it together (Add data)
+> "First, pull it all in. It doesn't matter what format a country gave you."
 
-## 0:20–1:00 — Bring records in (Add data)
-Click **Add data**.
+- Drop **04-fhir-bundle.json** → "A hospital export — imported exactly."
+- Drop **03-labcorp-lab-report.pdf** → "A PDF lab report from another clinic — the AI reads it in the background." *(Point at live status: Reading → Extracting → Added.)*
 
-> "One dropzone takes anything — a FHIR export, a PDF lab report, a photo, plain text. It detects the type and routes it."
+> "PDFs, photos, FHIR, plain text — different systems, one dropzone. And every fact traces back to its source."
 
-- Drop **04-fhir-bundle.json** → *"A FHIR bundle imports deterministically — labs, meds, a diagnosis, an allergy, a visit."* (preview card appears with grouped records).
-- Drop **03-labcorp-lab-report.pdf** → *"A real PDF — GPT-4o reads it in the background."* Point at the live status: **Reading the PDF… → Extracting… → Added N records**.
+*(Open **History** tab briefly.)*
+> "Here's the audit trail — every source, and exactly what it added."
 
-> "That extraction runs as a **Convex background job** — I'm not blocked, and the UI streams the status live."
+## 1:05–1:40 · One record, no matter where it came from
+> "Now it's a single record."
 
-Switch to the **History** tab.
+- **Timeline** — "Every visit and lab across every country, one feed."
+- **Trends → LDL** — "Different labs, different units, different codes for the same test — we normalize them into one metric and one trend line."
+- **Compare** — "Then-versus-now across any years — what changed while you were away."
 
-> "And everything's traceable — every source we ingested, and the exact records it produced, each tagged with its provenance. Nothing appears without a source."
+## 1:40–2:10 · Ask it anything (⌘J)
+Type: **"What should a new doctor know about me?"**
+> "It's an AI grounded in *my* record — watch it reason over my trends, flag what's out of range, and pull the key history. Every claim cites the source document, and general medical facts cite trusted sources — nothing made up. It even renders my real charts inline."
 
----
+## 2:10–2:45 · Share with any doctor — the travel payoff
+Sidebar → **Share with clinician → Preview snapshot** (opens a clean, read-only clinical snapshot).
+> "This is the part that matters when you're abroad. Instead of asking a new doctor to integrate with your old country's system — which never happens — you just hand them a link. Read-only, no account, no portal. Allergies and red flags up top, meds, conditions, trends, every item linking to its source. On the shared link they even get a record-scoped AI and an SBAR brief for triage."
 
-## 1:00–1:35 — Explore the record (Timeline · Trends · Compare · Review)
-> "Now it's one normalized record."
+## 2:45–3:00 · And it's portable, in standard formats
+Sidebar → **Export record → Document / FHIR**.
+> "Or export the whole thing as a formatted document, or a **FHIR** bundle any hospital system on earth can read — so your record is never locked in one country again."
 
-- **Timeline** — *"One dated feed across every provider."* (scroll a touch — infinite scroll is cursor-paginated in Convex.)
-- **Trends** — open LDL → *"Different clinics use different codes for the same test; we collapse them into one metric with a real trend line."*
-- **Compare** — *"Then-versus-now between any two years — what got worse, what improved, new diagnoses and meds."*
-- **Review** — *"Aggregation across providers surfaces what a single portal can't: dose conflicts, and stale meds to verify. I reconcile it here."* Click one **Yes/No** verify.
-
----
-
-## 1:35–2:15 — Ask the AI (grounded, cited)
-Hit **⌘J / Ask AI**. Type: **"What's driving my cardiovascular risk and what should I watch?"**
-
-> "The assistant is a **tool-calling agent** grounded in *my* data — watch the reasoning trace: it pulls my trends, checks reference ranges, and finds open loops."
-
-*(Point at the step-by-step tool trace.)*
-
-> "Every claim cites the source document it came from — and for general medical facts it cites **trusted sources via Firecrawl**, not made-up numbers. It even renders my real charts inline."
+> "Your health, in one place, that travels with you and any doctor can understand. **That's TraceHealth.**"
 
 ---
 
-## 2:15–2:40 — Reports + automation (Reports · Settings)
-- **Reports** → **Generate summary** → *"A formatted clinical one-pager — sections, tables, all from my record."*
-- **Settings → Automated reports** → toggle **Weekly** on → *"And it can run on a schedule — a **Convex cron** generates weekly or monthly summaries in the background, even when I'm away."* (the weekly report appears in the list).
-
----
-
-## 2:40–3:00 — Share + export
-- Sidebar → **Share with clinician** → **Preview snapshot** (opens a new tab).
-  > "A clean, read-only clinical snapshot — allergies and flags up top, meds, conditions, trends, every item linking to its source. The **shared link** also gives the clinician a record-scoped AI and an SBAR brief."
-- Sidebar → **Export record** → pick **Document** → *"And I can export the whole thing — formatted PDF, CSV, JSON, or FHIR — choosing exactly what to include, with a live preview."*
-
-> "One record. Source-traced. Yours — and an AI that actually knows it. That's TraceHealth."
-
----
-
-## Recording tips
-- **Software:** macOS built-in — `⇧⌘5` → Record Selected Portion (or full screen). Free, clean. For webcam bubble / zoom-to-cursor, **Screen Studio** (paid) is the nicest for demos; **OBS** is the free power option.
-- Record in a **maximized browser window** at 1280–1440 wide so text is legible.
-- Turn on **Do Not Disturb**; hide bookmarks bar.
-- Do the reset + the two ingests **once as a dry run** so the PDF extraction timing feels smooth on the take.
-- Keep the mouse deliberate; pause ~1s after each screen change so cuts are clean.
-- If a step is slow (PDF read), keep narrating the "Convex background job" point — it covers the wait.
-
-## The one-line pitch (if you need a title card)
-> **TraceHealth — every health record you own, in one place, that an AI actually understands.**
+## Recording
+- macOS `⇧⌘5` (free) or Screen Studio / OBS. Maximized browser at 1280–1440 wide, Do Not Disturb on.
+- Pause ~1s after each screen change. During the PDF read, keep talking (the "background job" / "AI reads it" line covers the wait).
