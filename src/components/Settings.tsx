@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
@@ -14,7 +15,20 @@ export default function Settings() {
   const { patientId, go } = useStore();
   const schedules = useQuery(api.reports.listSchedules, patientId ? { patientId } : "skip");
   const setSchedule = useMutation(api.reports.setReportSchedule);
+  const resetRecord = useMutation(api.patients.resetMyRecord);
+  const [clearing, setClearing] = useState(false);
   const rowOf = (c: string) => (schedules ?? []).find((s: any) => s.cadence === c);
+
+  async function clearAll() {
+    if (!window.confirm("Delete ALL your records — labs, meds, conditions, visits, documents, reports and connections? This can’t be undone.")) return;
+    setClearing(true);
+    try {
+      await resetRecord({});
+      go("home");
+    } finally {
+      setClearing(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-2xl animate-fade-in">
@@ -54,6 +68,24 @@ export default function Settings() {
           })}
         </div>
         <p className="mt-2 text-2xs text-ink-400">Turning one on generates the first report right away, then keeps it current on the cadence you chose.</p>
+      </section>
+
+      {/* Danger zone */}
+      <section className="mt-9">
+        <h2 className="text-sm font-semibold text-bad">Danger zone</h2>
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-bad/30 bg-bad-soft/40 p-4">
+          <div>
+            <div className="text-sm font-medium text-ink-900">Clear all records</div>
+            <div className="mt-0.5 text-xs text-ink-500">Delete every lab, medication, condition, visit, document, report and provider connection. Your account stays — the record is emptied. Can’t be undone.</div>
+          </div>
+          <button
+            onClick={clearAll}
+            disabled={clearing}
+            className="btn shrink-0 border border-bad/40 bg-bad-soft text-bad hover:bg-bad hover:text-white disabled:opacity-50"
+          >
+            {clearing ? "Clearing…" : "Clear records"}
+          </button>
+        </div>
       </section>
     </div>
   );
