@@ -4,7 +4,7 @@ import { useStore } from "../lib/store";
 import { fmtDate } from "../lib/format";
 
 export default function Conflicts() {
-  const { patientId, showEvidence, go } = useStore();
+  const { patientId, showEvidence, go, askAI } = useStore();
   const conflicts = useQuery(api.health.listConflicts, patientId ? { patientId } : "skip");
   const meds = useQuery(api.health.listMedications, patientId ? { patientId } : "skip");
   const missing = useQuery(api.health.listMissing, patientId ? { patientId } : "skip");
@@ -13,12 +13,30 @@ export default function Conflicts() {
 
   if (!conflicts) return <div className="mx-auto h-64 max-w-3xl animate-pulse rounded-lg bg-line-soft" />;
   const unverified = (meds ?? []).filter((m: any) => m.provenance !== "patient_verified");
+  const openConflicts = conflicts.filter((c: any) => c.status === "open");
+
+  function explainWithAI() {
+    const cs = openConflicts.map((c: any) => `${c.label} — ${(c.options ?? []).map((o: any) => `${o.source} ${o.value}`).join(" vs ")}`).join("; ");
+    askAI(
+      `I'm reconciling records combined from multiple providers. Open conflicts: ${cs || "none"}. ` +
+        `Medications not yet confirmed active: ${unverified.map((m: any) => m.name).join(", ") || "none"}. ` +
+        `In plain language: which of these matter most, what could go wrong if they're not resolved, and what should I sort out first?`,
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in space-y-9">
       <div>
-        <h1 className="text-2xl font-semibold text-ink-900">Review</h1>
-        <p className="mt-1 text-sm text-ink-500">Combining records across providers surfaces what a single portal can’t.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-ink-900">Review</h1>
+            <p className="mt-1 text-sm text-ink-500">Combining records across providers surfaces what a single portal can’t.</p>
+          </div>
+          <button onClick={explainWithAI} className="btn-secondary shrink-0 gap-1.5">
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
+            Explain with AI
+          </button>
+        </div>
 
         <div className="eyebrow mt-6 mb-2">Record conflicts</div>
         <div className="space-y-3">
