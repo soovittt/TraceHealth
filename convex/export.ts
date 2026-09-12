@@ -162,6 +162,25 @@ export const exportRecord = query({
   },
 });
 
+// The normalized record as structured data — drives the Export dialog's live
+// preview and lets the client build any format with the categories the user picks.
+export const exportData = query({
+  args: { patientId: v.id("patients"), shareToken: v.optional(v.string()) },
+  handler: async (ctx, { patientId, shareToken }) => {
+    const d = await loadAll(ctx, patientId, shareToken);
+    if (!d) return null;
+    return {
+      patient: d.patient ? { name: d.patient.name, age: d.patient.age, sex: d.patient.sex ?? null, recordsFrom: d.patient.recordsFrom ?? null } : null,
+      sources: [...new Set(d.documents.map((x: any) => x.org))],
+      observations: d.observations.sort((a: any, b: any) => a.date - b.date).map((o: any) => ({ code: o.code, label: o.label, value: o.value, unit: o.unit, date: day(o.date), provenance: o.provenance })),
+      medications: d.medications.sort((a: any, b: any) => (b.startDate ?? 0) - (a.startDate ?? 0)).map((m: any) => ({ name: m.name, dose: m.dose ?? null, doseUnit: m.doseUnit ?? null, status: m.status, startDate: day(m.startDate), provenance: m.provenance })),
+      conditions: d.conditions.sort((a: any, b: any) => (b.diagnosedDate ?? 0) - (a.diagnosedDate ?? 0)).map((c: any) => ({ name: c.name, status: c.status, diagnosedDate: day(c.diagnosedDate), provenance: c.provenance })),
+      encounters: d.encounters.sort((a: any, b: any) => b.date - a.date).map((e: any) => ({ title: e.title, kind: e.kind, date: day(e.date), provider: e.provider ?? null })),
+      allergies: d.allergies.map((a: any) => ({ substance: a.substance, reaction: a.reaction ?? null, provenance: a.provenance })),
+    };
+  },
+});
+
 // A single metric as CSV (date,value,unit) — for the Trends "export" affordance.
 export const exportMetricCsv = query({
   args: { patientId: v.id("patients"), code: v.string(), shareToken: v.optional(v.string()) },

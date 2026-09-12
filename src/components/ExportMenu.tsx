@@ -1,56 +1,21 @@
 import { useState } from "react";
-import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
+import ExportDialog from "./ExportDialog";
 
-const FORMATS: { key: "fhir" | "json" | "csv"; label: string; hint: string }[] = [
-  { key: "fhir", label: "FHIR Bundle", hint: "Interoperable — import into another system" },
-  { key: "csv", label: "Spreadsheet (CSV)", hint: "Every record as rows" },
-  { key: "json", label: "JSON", hint: "The full normalized record" },
-];
-
-// Kicks off a background export job; the global <ExportToast> tracks its status
-// and downloads the file when the Convex action finishes.
+// Opens the full export dialog (format + categories + live preview).
 export default function ExportMenu({ className = "" }: { className?: string }) {
-  const { patientId, exportJob, setExportJob } = useStore();
-  const requestExport = useMutation(api.export.requestExport);
+  const { patientId } = useStore();
   const [open, setOpen] = useState(false);
 
-  async function run(format: "fhir" | "json" | "csv") {
-    if (!patientId || exportJob) return;
-    setOpen(false);
-    const id = await requestExport({ patientId, format });
-    setExportJob({ id, format });
-  }
-
   return (
-    <div className={`relative ${className}`}>
-      <button className="btn-secondary w-full justify-start gap-2" onClick={() => setOpen((v) => !v)}>
+    <div className={className}>
+      <button className="btn-secondary w-full justify-start gap-2" onClick={() => setOpen(true)} disabled={!patientId}>
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
           <path d="M8 2v8m0 0 3-3M8 10 5 7M3 12.5h10" />
         </svg>
         Export record
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 z-40 mb-1.5 w-64 rounded-lg border border-line bg-surface p-1 shadow-pop animate-fade-in">
-            <div className="px-2 py-1.5 text-2xs font-medium uppercase tracking-wide text-ink-400">Download your record</div>
-            {FORMATS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => run(f.key)}
-                disabled={!!exportJob}
-                className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-line-soft disabled:opacity-50"
-              >
-                <span className="text-sm text-ink-800">{f.label}</span>
-                <span className="text-2xs text-ink-400">{f.hint}</span>
-              </button>
-            ))}
-            {exportJob && <div className="mt-1 border-t border-line-soft px-2 py-1.5 text-2xs text-ink-400">An export is already running…</div>}
-          </div>
-        </>
-      )}
+      {open && <ExportDialog onClose={() => setOpen(false)} />}
     </div>
   );
 }
