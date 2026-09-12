@@ -25,16 +25,13 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
   const [brief, setBrief] = useState<{ markdown: string; citations: any[] } | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
 
-  // A share token scopes the doctor chat to ONLY this record. In the real shared
-  // link it's the URL token; in owner-preview we mint one so the chat works too.
-  const createShare = useMutation(api.mutations.createShare);
+  // The AI clinician tools (chat + SBAR brief) live on the REAL shared link only —
+  // the owner's preview is a clean, AI-free snapshot of what the clinician receives.
   const [chatToken, setChatToken] = useState<string | null>(shareToken ?? null);
   const [chatOpen, setChatOpen] = useState(false);
   useEffect(() => {
-    if (shareToken) { setChatToken(shareToken); return; }
-    if (preview && resolvedId && !chatToken) createShare({ patientId: resolvedId }).then((t) => setChatToken(t)).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareToken, preview, resolvedId]);
+    if (shareToken) setChatToken(shareToken);
+  }, [shareToken]);
 
   async function makeBrief() {
     if (!resolvedId) return;
@@ -73,7 +70,7 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
             <span className="hidden text-2xs text-ink-400 sm:inline">/ Clinical snapshot</span>
           </div>
           <div className="flex items-center gap-2">
-            {chatToken && (
+            {!preview && chatToken && (
               <button className={`btn-ghost no-print gap-1.5 px-2.5 py-1 text-xs ${chatOpen ? "bg-line-soft text-ink-900" : ""}`} onClick={() => setChatOpen((v) => !v)}>
                 <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
                 {chatOpen ? "Hide AI" : "Ask AI"}
@@ -112,33 +109,35 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
               {highFlags.map((s: any) => <span key={s.id} className="text-xs text-bad-ink">· {s.title}</span>)}
             </div>
 
-            {/* #48 SBAR brief */}
-            <div className="mt-2.5 card p-3.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
-                  <span className="eyebrow">AI clinical brief · SBAR</span>
+            {/* #48 SBAR brief — AI, so shared link only (not the owner preview) */}
+            {!preview && (
+              <div className="mt-2.5 card p-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-accent" fill="currentColor"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>
+                    <span className="eyebrow">AI clinical brief · SBAR</span>
+                  </div>
+                  {!brief && (
+                    <button className="btn-secondary no-print px-2.5 py-1 text-xs" onClick={makeBrief} disabled={briefLoading}>{briefLoading ? "Generating…" : "Generate brief"}</button>
+                  )}
                 </div>
-                {!brief && (
-                  <button className="btn-secondary no-print px-2.5 py-1 text-xs" onClick={makeBrief} disabled={briefLoading}>{briefLoading ? "Generating…" : "Generate brief"}</button>
+                {brief ? (
+                  <div className="mt-2 text-sm text-ink-800">
+                    <Markdown text={brief.markdown} />
+                    {brief.citations?.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5 border-t border-line-soft pt-2">
+                        {brief.citations.map((c: any, i: number) => (
+                          <button key={i} onClick={() => showEvidence({ documentId: c.documentId })} className="rounded border border-line bg-canvas px-1.5 py-0.5 text-2xs text-ink-500 hover:text-ink-800">Source {i + 1}</button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-1.5 text-2xs text-ink-400">AI-generated · for triage · not a diagnosis</div>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-ink-400">A situation → background → assessment → review summary, generated from this record.</p>
                 )}
               </div>
-              {brief ? (
-                <div className="mt-2 text-sm text-ink-800">
-                  <Markdown text={brief.markdown} />
-                  {brief.citations?.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5 border-t border-line-soft pt-2">
-                      {brief.citations.map((c: any, i: number) => (
-                        <button key={i} onClick={() => showEvidence({ documentId: c.documentId })} className="rounded border border-line bg-canvas px-1.5 py-0.5 text-2xs text-ink-500 hover:text-ink-800">Source {i + 1}</button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="mt-1.5 text-2xs text-ink-400">AI-generated · for triage · not a diagnosis</div>
-                </div>
-              ) : (
-                <p className="mt-1 text-xs text-ink-400">A situation → background → assessment → review summary, generated from this record.</p>
-              )}
-            </div>
+            )}
 
             {snap.conflicts.length > 0 && (
               <div className="mt-2.5 rounded-md border border-warn-line bg-warn-soft px-3 py-2.5">
@@ -195,8 +194,8 @@ export default function DoctorView({ preview = false }: { preview?: boolean }) {
           </div>
         </main>
 
-        {/* read-only, share-scoped clinician chat */}
-        {chatToken && chatOpen && (
+        {/* read-only, share-scoped clinician chat — shared link only, not preview */}
+        {!preview && chatToken && chatOpen && (
           <aside className="no-print flex w-[360px] shrink-0 flex-col border-l border-line bg-surface">
             <DoctorAssistant token={chatToken} />
           </aside>
