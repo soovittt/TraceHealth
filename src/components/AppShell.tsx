@@ -242,7 +242,7 @@ export default function AppShell() {
       <ExportToast />
 
       {shareLink && (
-        <ShareModal link={shareLink} onClose={() => setShareLink(null)} onOpen={() => { setShareLink(null); go("doctor"); }} />
+        <ShareModal link={shareLink} onClose={() => setShareLink(null)} onOpen={() => window.open("/doctor", "_blank", "noopener")} />
       )}
     </div>
   );
