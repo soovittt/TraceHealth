@@ -169,7 +169,7 @@ export const aiSnapshot = internalQuery({
 // a live trace; omit it for a one-shot answer. NEVER persists — returns the
 // result. Access is decided by the CALLER (owner via assertWrite upstream, or a
 // verified share token), so this only ever reads the one patientId it's handed.
-async function runAgent(
+export async function runAgent(
   ctx: any,
   opts: {
     patientId: Id<"patients">;
