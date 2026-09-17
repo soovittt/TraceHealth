@@ -24,6 +24,18 @@ export const METRIC_META: Record<string, MetricMeta> = {
   HR: { code: "HR", label: "Heart rate", unit: "bpm", direction: "neutral" },
   EGFR: { code: "EGFR", label: "eGFR", unit: "mL/min", direction: "low_bad", refLow: 60 },
   CREATININE: { code: "CREATININE", label: "Creatinine", unit: "mg/dL", direction: "high_bad", refHigh: 1.3 },
+  // Thyroid
+  TSH: { code: "TSH", label: "TSH", unit: "mIU/L", direction: "high_bad", refHigh: 4.0, refLow: 0.4 },
+  FREE_T4: { code: "FREE_T4", label: "Free T4", unit: "ng/dL", direction: "low_bad", refLow: 0.8, refHigh: 1.8 },
+  // Iron / vitamins
+  FERRITIN: { code: "FERRITIN", label: "Ferritin", unit: "ng/mL", direction: "low_bad", refLow: 30, refHigh: 400 },
+  VITAMIN_B12: { code: "VITAMIN_B12", label: "Vitamin B12", unit: "pg/mL", direction: "low_bad", refLow: 200, refHigh: 900 },
+  // Liver enzymes
+  ALT: { code: "ALT", label: "ALT (SGPT)", unit: "U/L", direction: "high_bad", refHigh: 44 },
+  AST: { code: "AST", label: "AST (SGOT)", unit: "U/L", direction: "high_bad", refHigh: 40 },
+  // CBC
+  HGB: { code: "HGB", label: "Hemoglobin", unit: "g/dL", direction: "low_bad", refLow: 13 },
+  HCT: { code: "HCT", label: "Hematocrit", unit: "%", direction: "low_bad", refLow: 38 },
 };
 
 export function metaFor(code: string, fallbackLabel: string, unit: string): MetricMeta {
@@ -33,4 +45,5 @@ export function metaFor(code: string, fallbackLabel: string, unit: string): Metr
 // Metrics we chart well and lead with in the Overview + Trends tabs.
 export const PRIMARY_CODES = new Set([
   "LDL", "HBA1C", "BP_SYS", "WEIGHT", "BMI", "GLUCOSE", "CHOL_TOTAL", "HDL", "TRIG", "HR", "VITD",
+  "TSH", "FREE_T4", "FERRITIN", "VITAMIN_B12",
 ]);
