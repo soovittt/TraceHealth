@@ -264,7 +264,7 @@ async function runAgent(
       "(5) FORMAT for a chat bubble: for a simple/narrow answer, just 1–3 sentences, NO bullets. Only use a bullet list when you are genuinely covering multiple points; then each bullet is a **bold label** + a plain point, max ~5 bullets, no headings, no tables, no nested bullets. Keep sentences short. " +
       "Do NOT include a citations/sources section or any links in the answer text. Non-diagnostic. " +
       'Return STRICT JSON: {"answer": string (markdown), "charts": [metric codes], "citations": [{"documentId": string}], "followups": [2-3 short next questions the user might ask]}. ' +
-      "CHARTS RULE: put a metric code in charts ONLY if the user is explicitly asking about THAT metric's trend, history, chart, or change over time. For price, definition, medication, safety, or general questions, return charts: []. Never add a chart the user did not ask to see. " +
+      "CHARTS RULE: include a metric's chart only when it directly illustrates a point your answer is actually making about THAT metric (e.g. you discuss its trend or where it stands) — a chart must earn its place. Do NOT include charts for metrics you aren't discussing, and return charts: [] for price, definition, medication, safety, or administrative questions where no metric is the subject. When in doubt, prefer fewer or none. " +
       "Only use documentId values and metric codes that appeared in the overview or tool results.";
 
     const messages: any[] = [
