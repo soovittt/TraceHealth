@@ -216,7 +216,10 @@ async function runAgent(
     const texts = (attachments ?? []).filter((a) => a.text);
     for (const a of media) {
       await begin(`Reading ${a.filename}`);
-      const ex: any = await ctx.runAction(internal.ingest.extractAttachment, { patientId, filename: a.filename, storageId: a.storageId!, kind: a.kind! });
+      let ex: any = null;
+      try {
+        ex = await ctx.runAction(internal.ingest.extractAttachment, { patientId, filename: a.filename, storageId: a.storageId!, kind: a.kind! });
+      } catch { ex = null; } // never let a bad/slow file hang the whole answer
       if (ex && ex.empty) {
         emptyAny = true;
         attachmentBlock += `ATTACHED ${a.kind!.toUpperCase()} ("${a.filename}") — no medical records were found in it, so nothing was added.\n\n`;

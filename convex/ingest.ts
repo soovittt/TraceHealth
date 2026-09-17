@@ -51,7 +51,10 @@ export const insertExtracted = internalMutation({
     allergies: v.optional(v.array(v.object({ substance: v.string(), reaction: v.optional(v.string()) }))),
   },
   handler: async (ctx, a) => {
-    await assertWrite(ctx, a.patientId);
+    // Trusted internal insert — runs inside SCHEDULED actions (runIngest,
+    // extractAttachment) that have NO auth context, so we must not assertWrite here.
+    // Authorization already happened at the public entry points (requestIngest /
+    // assistant.ask both assertWrite before scheduling).
     const documentId: Id<"documents"> = await ctx.db.insert("documents", {
       patientId: a.patientId,
       filename: a.filename,
