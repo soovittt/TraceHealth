@@ -45,18 +45,18 @@ export default function MetricGraph() {
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in">
-      {/* metric tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-line pb-0">
+      {/* metric selector — a clean single-line pill row */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {(metrics ?? [])
           .filter((m: any) => m.primary || m.code === code)
           .map((m: any) => (
           <button
             key={m.code}
             onClick={() => openMetric(m.code)}
-            className={`-mb-px border-b-2 px-2.5 py-2 text-sm transition-colors ${
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               m.code === code
-                ? "border-ink-900 font-medium text-ink-900"
-                : "border-transparent text-ink-500 hover:text-ink-800"
+                ? "border-transparent bg-brand text-brand-fg"
+                : "border-line text-ink-600 hover:bg-line-soft"
             }`}
           >
             {m.label}
