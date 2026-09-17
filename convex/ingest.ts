@@ -352,6 +352,10 @@ export const extractAttachment = internalAction({
       ]);
       excerpt = `Extracted from image: ${filename}`;
     }
+    // Nothing medical in it (a random photo, a blank scan) → don't clutter the
+    // record with an empty document; tell the caller it was empty.
+    const found = s.observations.length + s.medications.length + s.conditions.length + s.encounters.length + s.allergies.length;
+    if (found === 0) return { empty: true, filename };
     const r: any = await ctx.runMutation(internal.ingest.insertExtracted, {
       patientId, filename, org: s.org, excerpt, storageId,
       observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,

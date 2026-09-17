@@ -86,9 +86,9 @@ export const ask = mutation({
     question: v.string(),
     conversationId: v.optional(v.id("conversations")),
     context: v.optional(v.string()),
-    attachment: v.optional(v.object({ filename: v.string(), text: v.optional(v.string()), storageId: v.optional(v.id("_storage")), kind: v.optional(v.string()) })),
+    attachments: v.optional(v.array(v.object({ filename: v.string(), text: v.optional(v.string()), storageId: v.optional(v.id("_storage")), kind: v.optional(v.string()) }))),
   },
-  handler: async (ctx, { patientId, question, conversationId, context, attachment }): Promise<Id<"conversations">> => {
+  handler: async (ctx, { patientId, question, conversationId, context, attachments }): Promise<Id<"conversations">> => {
     await assertWrite(ctx, patientId);
     const now = Date.now();
 
@@ -114,7 +114,7 @@ export const ask = mutation({
       patientId,
       conversationId: convId,
       role: "user",
-      content: attachment ? `📎 ${attachment.filename}\n\n${question}` : question,
+      content: attachments && attachments.length ? `📎 ${attachments.map((a) => a.filename).join(", ")}\n\n${question}` : question,
       createdAt: now,
     });
     const assistantId = await ctx.db.insert("chatMessages", {
@@ -131,7 +131,7 @@ export const ask = mutation({
       question,
       messageId: assistantId,
       context,
-      attachment,
+      attachments,
     });
     return convId;
   },
@@ -175,7 +175,7 @@ async function runAgent(
     patientId: Id<"patients">;
     question: string;
     context?: string;
-    attachment?: { filename: string; text?: string; storageId?: Id<"_storage">; kind?: string };
+    attachments?: { filename: string; text?: string; storageId?: Id<"_storage">; kind?: string }[];
     shareToken?: string;
     emit?: (steps: any[]) => Promise<any>;
   },
@@ -188,7 +188,7 @@ async function runAgent(
   webSources: { title: string; url: string }[];
   steps: any[];
 }> {
-  const { patientId, question, context, attachment, shareToken, emit } = opts;
+  const { patientId, question, context, attachments, shareToken, emit } = opts;
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
@@ -205,24 +205,41 @@ async function runAgent(
   if (!apiKey) return fail("The AI assistant needs an OpenAI key. Run: npx convex env set OPENAI_API_KEY sk-…");
 
   {
-    // 0) If an image/PDF is attached, read it with vision and ingest the records
-    //    FIRST — so the snapshot, charts, and citations below all include them.
+    // 0) Handle any attached files FIRST — so the snapshot, charts, and citations
+    //    below include anything we ingest. Images/PDFs are read with vision and the
+    //    structured records added to the record; text files are analyzed inline.
     let attachmentBlock = "";
-    if (attachment?.storageId && (attachment.kind === "image" || attachment.kind === "pdf")) {
-      await begin(`Reading ${attachment.filename}`);
-      const ex: any = await ctx.runAction(internal.ingest.extractAttachment, { patientId, filename: attachment.filename, storageId: attachment.storageId, kind: attachment.kind });
-      if (ex && ex.counts) {
+    let addedTotal = 0;
+    let addedAny = false;
+    let emptyAny = false;
+    const media = (attachments ?? []).filter((a) => a.storageId && (a.kind === "image" || a.kind === "pdf"));
+    const texts = (attachments ?? []).filter((a) => a.text);
+    for (const a of media) {
+      await begin(`Reading ${a.filename}`);
+      const ex: any = await ctx.runAction(internal.ingest.extractAttachment, { patientId, filename: a.filename, storageId: a.storageId!, kind: a.kind! });
+      if (ex && ex.empty) {
+        emptyAny = true;
+        attachmentBlock += `ATTACHED ${a.kind!.toUpperCase()} ("${a.filename}") — no medical records were found in it, so nothing was added.\n\n`;
+        await done("No medical records found");
+      } else if (ex && ex.counts) {
         const c = ex.counts;
         const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
+        addedTotal += total; addedAny = addedAny || total > 0;
         const previewText = (ex.preview ?? []).map((p: any) => `- ${p.text}${p.sub ? ` (${p.sub})` : ""}`).join("\n");
-        attachmentBlock = `ATTACHED ${attachment.kind.toUpperCase()} ("${attachment.filename}") — I read it with vision and ADDED these ${total} record(s) to the patient's record${ex.skipped ? ` (${ex.skipped} duplicate(s) skipped)` : ""}:\n${previewText || "(no structured records found)"}\n\nTell the user you've added them, then explain in plain language what they mean for this patient and how they relate to the rest of the record.\n\n`;
-        await done(total > 0 ? `Added ${total} record${total === 1 ? "" : "s"} to your record` : "No structured records found");
+        attachmentBlock += `ATTACHED ${a.kind!.toUpperCase()} ("${a.filename}") — read with vision; ADDED ${total} record(s) to the patient's record${ex.skipped ? ` (${ex.skipped} duplicate(s) skipped)` : ""}:\n${previewText}\n\n`;
+        await done(total > 0 ? `Added ${total} record${total === 1 ? "" : "s"}` : "No new records");
       } else {
-        attachmentBlock = `ATTACHED ${attachment.kind.toUpperCase()} ("${attachment.filename}") could not be read. Let the user know.\n\n`;
-        await done("Couldn't read the attachment");
+        attachmentBlock += `ATTACHED ${a.kind!.toUpperCase()} ("${a.filename}") could not be read.\n\n`;
+        await done("Couldn't read it");
       }
-    } else if (attachment?.text) {
-      attachmentBlock = `ATTACHED FILE ("${attachment.filename}") — analyze it and relate it to the record:\n"""\n${attachment.text.slice(0, 12000)}\n"""\n\n`;
+    }
+    for (const a of texts) {
+      attachmentBlock += `ATTACHED FILE ("${a.filename}") — analyze it and relate it to the record:\n"""\n${String(a.text).slice(0, 12000)}\n"""\n\n`;
+    }
+    if (media.length) {
+      attachmentBlock += addedAny
+        ? `Tell the user exactly what you added (grouped, plain-language), then explain what it means for them and how it relates to the rest of the record.\n\n`
+        : `Tell the user you reviewed the file(s) but found no medical records to add. If they asked about symptoms in a photo, gently suggest describing them or seeing a clinician — do not diagnose from an image.\n\n`;
     }
 
     await begin("Reading your health record");
@@ -412,11 +429,11 @@ export const answer = internalAction({
     question: v.string(),
     messageId: v.id("chatMessages"),
     context: v.optional(v.string()),
-    attachment: v.optional(v.object({ filename: v.string(), text: v.optional(v.string()), storageId: v.optional(v.id("_storage")), kind: v.optional(v.string()) })),
+    attachments: v.optional(v.array(v.object({ filename: v.string(), text: v.optional(v.string()), storageId: v.optional(v.id("_storage")), kind: v.optional(v.string()) }))),
   },
-  handler: async (ctx, { patientId, question, messageId, context, attachment }) => {
+  handler: async (ctx, { patientId, question, messageId, context, attachments }) => {
     const res = await runAgent(ctx, {
-      patientId, question, context, attachment,
+      patientId, question, context, attachments,
       emit: (steps) => ctx.runMutation(internal.assistant.setSteps, { messageId, steps }),
     });
     await ctx.runMutation(internal.assistant.finalize, {

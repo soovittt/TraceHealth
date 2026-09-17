@@ -52,8 +52,10 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
 
   const generateUploadUrl = useMutation(api.ingest.generateUploadUrl);
   const [input, setInput] = useState("");
-  const [attached, setAttached] = useState<{ filename: string; text?: string; storageId?: any; kind?: string } | null>(null);
+  type Att = { filename: string; text?: string; storageId?: any; kind?: string };
+  const [attachments, setAttachments] = useState<Att[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -72,45 +74,60 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
   const shownMessages = conversationId ? messages ?? [] : [];
   const empty = shownMessages.length === 0;
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    const name = f.name.toLowerCase();
-    const isImage = f.type.startsWith("image/");
-    const isPdf = f.type === "application/pdf" || name.endsWith(".pdf");
-    if (isImage || isPdf) {
-      // Image/PDF → upload to storage; the assistant reads it with vision + ingests it.
-      setUploading(true);
-      try {
-        const url = await generateUploadUrl();
-        const up = await fetch(url, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f });
-        const { storageId } = await up.json();
-        setAttached({ filename: f.name, storageId, kind: isImage ? "image" : "pdf" });
-      } finally {
-        setUploading(false);
+  // Accepts multiple files from the picker, a paste, or a drop. Images/PDFs upload
+  // to storage (the assistant reads them with vision + ingests); text is read inline.
+  async function addFiles(files: FileList | File[]) {
+    const arr = Array.from(files ?? []);
+    if (!arr.length) return;
+    for (const f of arr) {
+      const name = f.name.toLowerCase();
+      const isImage = f.type.startsWith("image/");
+      const isPdf = f.type === "application/pdf" || name.endsWith(".pdf");
+      if (isImage || isPdf) {
+        setUploading(true);
+        try {
+          const url = await generateUploadUrl();
+          const up = await fetch(url, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f });
+          const { storageId } = await up.json();
+          setAttachments((prev) => [...prev, { filename: f.name || (isImage ? "image.png" : "document.pdf"), storageId, kind: isImage ? "image" : "pdf" }]);
+        } finally {
+          setUploading(false);
+        }
+      } else {
+        const text = await f.text().catch(() => "");
+        setAttachments((prev) => [...prev, { filename: f.name, text: text.slice(0, 20000) }]);
       }
-    } else {
-      const text = await f.text().catch(() => "");
-      setAttached({ filename: f.name, text: text.slice(0, 20000) });
     }
   }
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) await addFiles(e.target.files);
+    e.target.value = "";
+  }
+  function onPaste(e: React.ClipboardEvent) {
+    const files: File[] = [];
+    for (const it of Array.from(e.clipboardData?.items ?? [])) {
+      if (it.kind === "file") { const f = it.getAsFile(); if (f) files.push(f); }
+    }
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  }
+  const removeAtt = (i: number) => setAttachments((prev) => prev.filter((_, idx) => idx !== i));
 
   async function send(q?: string) {
     const text = (q ?? input).trim();
-    if ((!text && !attached) || !patientId || busy) return;
+    if ((!text && !attachments.length) || !patientId || busy || uploading) return;
     setInput("");
-    const att = attached;
-    setAttached(null);
-    const defaultQ = att?.storageId
-      ? "Read this, add anything relevant to my record, and explain what it means."
-      : "Please analyze the attached file and summarize the key findings.";
+    const atts = attachments;
+    setAttachments([]);
+    const hasMedia = atts.some((a) => a.storageId);
+    const defaultQ = hasMedia
+      ? "Read these, add anything relevant to my record, and explain what they mean."
+      : "Please analyze the attached file(s) and summarize the key findings.";
     const convId = await ask({
       patientId,
       question: text || defaultQ,
       conversationId: conversationId ?? undefined,
       context: describeView(view, metricCode),
-      attachment: att ?? undefined,
+      attachments: atts.length ? atts : undefined,
     });
     if (!conversationId) setConversation(convId);
   }
@@ -118,7 +135,7 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
   function newChat() {
     setConversation(null);
     setInput("");
-    setAttached(null);
+    setAttachments([]);
     setHistoryOpen(false);
   }
 
@@ -299,21 +316,31 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
         )}
       </div>
 
-      {/* composer */}
-      <div className="border-t border-line px-3 py-2.5">
-        {(attached || uploading) && (
-          <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-canvas px-2 py-1 text-xs text-ink-700">
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3">
-              <path d="M9 3H4v10h8V6M9 3l3 3M9 3v3h3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="truncate">{uploading ? "Uploading…" : attached?.filename}</span>
-            {attached?.kind && <span className="tag shrink-0">{attached.kind === "image" ? "Image" : attached.kind === "pdf" ? "PDF" : ""}</span>}
-            {attached && <span className="text-2xs text-ink-400">{attached.storageId ? "will be read & added to your record" : ""}</span>}
-            {attached && <button className="ml-auto text-ink-400 hover:text-bad" onClick={() => setAttached(null)}>✕</button>}
+      {/* composer — drop files anywhere here */}
+      <div
+        className={`border-t px-3 py-2.5 transition-colors ${dragOver ? "border-accent bg-accent-soft/40" : "border-line"}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
+      >
+        {(attachments.length > 0 || uploading) && (
+          <div className="mb-1.5 flex flex-wrap gap-1.5">
+            {attachments.map((a, i) => (
+              <span key={i} className="flex items-center gap-1.5 rounded-md border border-line bg-canvas px-2 py-1 text-xs text-ink-700">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M9 3H4v10h8V6M9 3l3 3M9 3v3h3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <span className="max-w-[140px] truncate">{a.filename}</span>
+                {a.kind && <span className="tag shrink-0">{a.kind === "image" ? "Image" : "PDF"}</span>}
+                <button className="text-ink-400 hover:text-bad" onClick={() => removeAtt(i)}>✕</button>
+              </span>
+            ))}
+            {uploading && <span className="flex items-center gap-1.5 rounded-md border border-line bg-canvas px-2 py-1 text-xs text-ink-400"><span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-line-strong border-t-accent" />Uploading…</span>}
           </div>
         )}
+        {attachments.some((a) => a.storageId) && (
+          <div className="mb-1.5 text-2xs text-ink-400">Images & PDFs are read and their records added to your health record.</div>
+        )}
         <div className="flex items-end gap-2">
-          <input ref={fileRef} type="file" className="hidden" accept=".txt,.csv,.json,.md,.xml,.fhir,.html,.pdf,image/*" onChange={onFile} />
+          <input ref={fileRef} type="file" multiple className="hidden" accept=".txt,.csv,.json,.md,.xml,.fhir,.html,.pdf,image/*" onChange={onFile} />
           <button
             onClick={() => fileRef.current?.click()}
             title="Attach a file"
@@ -326,6 +353,7 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onPaste={onPaste}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -333,10 +361,10 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
               }
             }}
             rows={1}
-            placeholder={attached ? "Ask about this file…" : "Ask about your health…"}
+            placeholder={attachments.length ? "Ask about these files…" : "Ask about your health…  (paste or drop a lab photo/PDF)"}
             className="input max-h-28 flex-1 resize-none py-2 text-sm"
           />
-          <button className="btn-primary px-3 py-2" onClick={() => send()} disabled={busy || uploading || (!input.trim() && !attached)}>
+          <button className="btn-primary px-3 py-2" onClick={() => send()} disabled={busy || uploading || (!input.trim() && !attachments.length)}>
             {busy ? "…" : "Send"}
           </button>
         </div>
