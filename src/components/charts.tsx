@@ -75,6 +75,20 @@ export function TrendChart({
   const ticks = Array.from({ length: yTicks + 1 }, (_, i) => minY + ((maxY - minY) / yTicks) * i);
   const MONO = "'IBM Plex Mono', monospace";
 
+  // Only label the x-axis once per year, and never closer than ~28px, so
+  // clustered readings don't collide into unreadable overlaps ("20219").
+  const yearLabelIdx = (() => {
+    const show = new Set<number>();
+    let lastYear: number | null = null;
+    let lastX = -Infinity;
+    points.forEach((p, i) => {
+      const y = new Date(p.date).getUTCFullYear();
+      const x = px(p.date);
+      if (y !== lastYear && x - lastX >= 28) { show.add(i); lastYear = y; lastX = x; }
+    });
+    return show;
+  })();
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full text-ink-900" style={{ maxHeight: H }}>
       {/* y grid + labels */}
@@ -116,9 +130,11 @@ export function TrendChart({
           <text x={px(p.date)} y={py(p.value) - 10} textAnchor="middle" fontSize="10" fontWeight={500} className="fill-ink-900" fontFamily={MONO}>
             {fmtNum(p.value)}
           </text>
-          <text x={px(p.date)} y={H - padB + 15} textAnchor="middle" fontSize="9.5" className="fill-ink-400" fontFamily={MONO}>
-            {new Date(p.date).getUTCFullYear()}
-          </text>
+          {yearLabelIdx.has(i) && (
+            <text x={px(p.date)} y={H - padB + 15} textAnchor="middle" fontSize="9.5" className="fill-ink-400" fontFamily={MONO}>
+              {new Date(p.date).getUTCFullYear()}
+            </text>
+          )}
         </g>
       ))}
     </svg>

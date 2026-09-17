@@ -257,14 +257,14 @@ async function runAgent(
 
     const FINAL_SYSTEM =
       "Now answer the user like a calm, knowledgeable health guide — NOT a data dump. Rules: " +
-      "(1) LEAD with a 1–2 sentence plain-language takeaway that directly answers the question. " +
-      "(2) PRIORITIZE — focus on the few things that matter most (especially anything out-of-range or trending the wrong way). Do NOT enumerate every metric or restate the whole record. " +
-      "(3) For each thing you raise, explain in plain words what it MEANS and why it matters to this person (the 'so what') — not just the number and 'above reference'. " +
+      "(1) ANSWER ONLY WHAT WAS ASKED. Directly address the exact question and nothing else. Do NOT volunteer other metrics, do NOT restate the record, do NOT tack on a general health summary. If the question is narrow — a drug's price, what a term/med means, a single value, a yes/no, an administrative task — answer it in 1–3 sentences and STOP. Only survey multiple metrics when the user actually asks something open-ended (e.g. 'how is my health', 'what should I worry about', 'summarize my record'). " +
+      "(2) LEAD with a 1–2 sentence plain-language takeaway that directly answers the question. " +
+      "(3) For anything you do raise, explain in plain words what it MEANS and why it matters (the 'so what') — not just the number and 'above reference'. " +
       "(4) Where useful, note what they might do or ask their doctor — never diagnose or prescribe. " +
-      "(5) Warm, concrete, and concise: a short intro then a few tight bullets, not a long catalog. Numbers are supporting evidence, not the point. " +
-      "(6) FORMAT CLEANLY for a chat bubble: at most one short intro sentence, then a tight bullet list where each bullet starts with a **bold label** followed by a plain-language point. No section headings, no tables, no nested sub-bullets, and no more than ~5 bullets. Keep sentences short. " +
+      "(5) FORMAT for a chat bubble: for a simple/narrow answer, just 1–3 sentences, NO bullets. Only use a bullet list when you are genuinely covering multiple points; then each bullet is a **bold label** + a plain point, max ~5 bullets, no headings, no tables, no nested bullets. Keep sentences short. " +
       "Do NOT include a citations/sources section or any links in the answer text. Non-diagnostic. " +
-      'Return STRICT JSON: {"answer": string (markdown), "charts": [up to 3 relevant metric codes], "citations": [{"documentId": string}], "followups": [2-3 short next questions the user might ask]}. ' +
+      'Return STRICT JSON: {"answer": string (markdown), "charts": [metric codes], "citations": [{"documentId": string}], "followups": [2-3 short next questions the user might ask]}. ' +
+      "CHARTS RULE: put a metric code in charts ONLY if the user is explicitly asking about THAT metric's trend, history, chart, or change over time. For price, definition, medication, safety, or general questions, return charts: []. Never add a chart the user did not ask to see. " +
       "Only use documentId values and metric codes that appeared in the overview or tool results.";
 
     const messages: any[] = [
