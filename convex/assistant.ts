@@ -311,6 +311,16 @@ async function runAgent(
             } else {
               r = { result: { topic, unavailable: ref?.error ? `reference lookup error: ${ref.error}` : "Reference lookup unavailable (Firecrawl not configured)." }, label: `Looked up “${topic}”`, detail: "no source" };
             }
+          } else if (name === "drug_price") {
+            // Network tool: live pharmacy prices via Firecrawl (public drug name only).
+            const drug = String(a.drug ?? "").slice(0, 60);
+            const res: any = await ctx.runAction(internal.firecrawl.drugPrice, { drug });
+            if (res && Array.isArray(res.prices) && res.prices.length) {
+              if (res.source) webSources.push({ title: `GoodRx — ${drug} prices`, url: res.source });
+              r = { result: { drug, prices: res.prices, genericAvailable: res.genericAvailable, source: res.source, note: "Live cash/coupon prices — estimates, not insurance." }, label: `Live prices for ${drug}`, detail: `${res.prices.length} pharmacies · from $${Math.min(...res.prices.map((p: any) => p.price))}` };
+            } else {
+              r = { result: { drug, prices: [], unavailable: res?.error ?? res?.note ?? "No live prices found." }, label: `Live prices for ${drug}`, detail: "unavailable" };
+            }
           } else {
             const t = executeTool(name, a, tctx);
             t.docs.forEach((d) => usedDocs.add(String(d)));

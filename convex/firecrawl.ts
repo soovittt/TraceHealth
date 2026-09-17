@@ -1,6 +1,66 @@
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
+// ---- Firecrawl v2 Scrape: structured JSON from ONE public page (synchronous) --
+async function fcScrapeJson(apiKey: string, url: string, prompt: string, schema: any): Promise<any> {
+  const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ url, onlyMainContent: true, formats: [{ type: "json", prompt, schema }] }),
+  });
+  if (!res.ok) throw new Error(`Firecrawl scrape ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  const j = await res.json();
+  return j?.data?.json ?? null;
+}
+
+const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// Live cash/retail drug prices from GoodRx's public drug page as typed JSON.
+// Public drug name only — never patient data. Returns
+// { drug, prices:[{pharmacy, price, quantity?, sourceUrl}], genericAvailable } | { error } | null.
+export const drugPrice = internalAction({
+  args: { drug: v.string(), strength: v.optional(v.string()), zip: v.optional(v.string()) },
+  handler: async (ctx, { drug }) => {
+    const apiKey = process.env.FIRECRAWL_API_KEY;
+    if (!apiKey) return null;
+    // GoodRx generic-drug pages are at a predictable slug (e.g. /atorvastatin).
+    const slug = slugify(drug.replace(/\b\d+\s*(mg|mcg|ml|units?)\b/gi, ""));
+    const url = `https://www.goodrx.com/${slug}`;
+    const schema = {
+      type: "object",
+      properties: {
+        drug: { type: "string" },
+        genericAvailable: { type: "boolean" },
+        prices: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              pharmacy: { type: "string" },
+              price: { type: "number" },
+              quantity: { type: "string" },
+            },
+            required: ["pharmacy", "price"],
+          },
+        },
+      },
+      required: ["prices"],
+    };
+    try {
+      const data = await fcScrapeJson(apiKey, url, `Extract the current cash/coupon prices for ${drug} shown on this GoodRx page. For each pharmacy listed give its name, the price in USD as a plain number, and the quantity it covers. Also whether a generic is available. Only real listed prices.`, schema);
+      const prices = (Array.isArray(data?.prices) ? data.prices : [])
+        .filter((p: any) => typeof p?.price === "number" && p.price > 0)
+        .map((p: any) => ({ pharmacy: String(p.pharmacy ?? "Pharmacy"), price: Number(p.price), quantity: p.quantity ? String(p.quantity) : undefined, sourceUrl: url }))
+        .sort((a: any, b: any) => a.price - b.price)
+        .slice(0, 6);
+      if (!prices.length) return { drug, prices: [], note: "No public prices found for that name.", source: url };
+      return { drug, prices, genericAvailable: !!data?.genericAvailable, source: url };
+    } catch (e: any) {
+      return { error: String(e?.message ?? e).slice(0, 150) };
+    }
+  },
+});
+
 // Firecrawl-powered grounded reference enrichment. We ONLY ever send a public
 // topic term (e.g. "LDL cholesterol", "atorvastatin") — never any patient data —
 // crawl trusted public medical sources, and cite the page URL. Reference info is
