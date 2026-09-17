@@ -223,6 +223,7 @@ async function runAgent(
     const usedDocs = new Set<string>();
     const usedCodes = new Set<string>();
     const webSources: { title: string; url: string }[] = [];
+    let modelSourceUrls: string[] = []; // which sources the model said it actually used
     const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return "source"; } };
 
     // A compact overview so simple questions need no tool call; tools add depth.
@@ -263,7 +264,8 @@ async function runAgent(
       "(4) Where useful, note what they might do or ask their doctor — never diagnose or prescribe. " +
       "(5) FORMAT for a chat bubble: for a simple/narrow answer, just 1–3 sentences, NO bullets. Only use a bullet list when you are genuinely covering multiple points; then each bullet is a **bold label** + a plain point, max ~5 bullets, no headings, no tables, no nested bullets. Keep sentences short. " +
       "Do NOT include a citations/sources section or any links in the answer text. Non-diagnostic. " +
-      'Return STRICT JSON: {"answer": string (markdown), "charts": [metric codes], "citations": [{"documentId": string}], "followups": [2-3 short next questions the user might ask]}. ' +
+      'Return STRICT JSON: {"answer": string (markdown), "charts": [metric codes], "citations": [{"documentId": string}], "sources": [web source URLs you relied on], "followups": [2-3 short next questions the user might ask]}. ' +
+      "SOURCES RULE: if any web/reference/price tool returned source URLs, put in `sources` the exact URLs you actually relied on for your answer — cite AS MANY as are genuinely relevant and no fixed number (it may be one, or several); omit any you didn't use. If you used no web sources, return []. " +
       "CHARTS RULE: include a metric's chart only when it directly illustrates a point your answer is actually making about THAT metric (e.g. you discuss its trend or where it stands) — a chart must earn its place. Do NOT include charts for metrics you aren't discussing, and return charts: [] for price, definition, medication, safety, or administrative questions where no metric is the subject. When in doubt, prefer fewer or none. " +
       "Only use documentId values and metric codes that appeared in the overview or tool results.";
 
@@ -363,14 +365,20 @@ async function runAgent(
         .map((f: any) => String(f).trim())
         .filter(Boolean)
         .slice(0, 3);
+      modelSourceUrls = (Array.isArray(parsed.sources) ? parsed.sources : []).map((u: any) => String(u)).filter(Boolean);
       await done();
     } catch (e: any) {
       return fail(`Sorry — I hit an error reaching the model.\n\n\`${String(e?.message ?? e).slice(0, 200)}\``);
     }
 
-    // Dedupe web sources by URL.
+    // Dedupe candidate web sources by URL.
     const seenUrl = new Set<string>();
-    const webOut = webSources.filter((w) => (seenUrl.has(w.url) ? false : (seenUrl.add(w.url), true))).slice(0, 4);
+    const candidates = webSources.filter((w) => (seenUrl.has(w.url) ? false : (seenUrl.add(w.url), true)));
+    // How many sources to show is up to the MODEL: cite exactly the ones it said
+    // it relied on (any count). Fall back to all gathered sources if it named none.
+    const norm = (u: string) => u.replace(/\/+$/, "").toLowerCase();
+    const chosen = candidates.filter((w) => modelSourceUrls.some((m) => norm(m) === norm(w.url) || norm(w.url).includes(norm(m)) || norm(m).includes(norm(w.url))));
+    const webOut = (chosen.length ? chosen : candidates).slice(0, 8);
     return { content, error: false, citations, charts, followups, webSources: webOut, steps };
   }
 }

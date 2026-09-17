@@ -146,7 +146,7 @@ export const referenceLookup = internalAction({
       if (!url || seen.has(host)) continue;
       seen.add(host);
       sources.push({ title: String(r.title || url), url });
-      if (sources.length >= 3) break;
+      if (sources.length >= 5) break;
     }
     const summary = openaiKey ? await summarize(openaiKey, model, topic, String(pick.markdown)) : String(pick.description || "").slice(0, 400);
     return { summary: summary || String(pick.description || "").slice(0, 400), source, sources };
