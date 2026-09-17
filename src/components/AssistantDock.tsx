@@ -47,16 +47,6 @@ export default function AssistantDock() {
             )}
           </button>
           <button
-            onClick={() => setDockSide(dockSide === "right" ? "left" : "right")}
-            title={dockSide === "right" ? "Dock left" : "Dock right"}
-            className="grid h-6 w-6 place-items-center rounded text-ink-400 hover:bg-line-soft hover:text-ink-700"
-          >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.3">
-              <rect x="2" y="3" width="12" height="10" rx="1.5" />
-              <line x1={dockSide === "right" ? "6" : "10"} y1="3" x2={dockSide === "right" ? "6" : "10"} y2="13" />
-            </svg>
-          </button>
-          <button
             onClick={() => toggleDock(false)}
             title="Close (⌘J)"
             className="grid h-6 w-6 place-items-center rounded text-ink-400 hover:bg-line-soft hover:text-ink-700"

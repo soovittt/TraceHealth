@@ -126,9 +126,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dockOpen, setDockOpen] = useState<boolean>(
     () => (typeof localStorage !== "undefined" && localStorage.getItem("th_dockOpen") === "1"),
   );
-  const [dockSide, setDockSideState] = useState<"left" | "right">(
-    () => ((typeof localStorage !== "undefined" && localStorage.getItem("th_dockSide")) as any) || "right",
-  );
+  // The assistant always docks on the right (left-dock removed — it wedged the
+  // panel awkwardly between the sidebar and content).
+  const [dockSide, setDockSideState] = useState<"left" | "right">("right");
   const [dockExpanded, setDockExpanded] = useState<boolean>(
     () => typeof localStorage !== "undefined" && localStorage.getItem("th_dockExpanded") === "1",
   );

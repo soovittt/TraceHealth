@@ -173,7 +173,6 @@ export default function AppShell() {
       </nav>
 
       {/* AI dock — left (hidden on the full-page chat, which is itself the assistant) */}
-      {dockSide === "left" && view !== "chat" && <AssistantDock />}
 
       {/* main */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
