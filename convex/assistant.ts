@@ -374,11 +374,14 @@ async function runAgent(
     // Dedupe candidate web sources by URL.
     const seenUrl = new Set<string>();
     const candidates = webSources.filter((w) => (seenUrl.has(w.url) ? false : (seenUrl.add(w.url), true)));
-    // How many sources to show is up to the MODEL: cite exactly the ones it said
-    // it relied on (any count). Fall back to all gathered sources if it named none.
+    // The model picks which sources it relied on, but we enforce a FLOOR of 5
+    // whenever the answer is web-backed: pad the model's picks with the other real
+    // gathered sources up to 5 (more is fine). Pure own-record answers stay at 0.
     const norm = (u: string) => u.replace(/\/+$/, "").toLowerCase();
     const chosen = candidates.filter((w) => modelSourceUrls.some((m) => norm(m) === norm(w.url) || norm(w.url).includes(norm(m)) || norm(m).includes(norm(w.url))));
-    const webOut = (chosen.length ? chosen : candidates).slice(0, 8);
+    const out = [...(chosen.length ? chosen : candidates)];
+    for (const c of candidates) { if (out.length >= 5) break; if (!out.some((x) => x.url === c.url)) out.push(c); }
+    const webOut = candidates.length === 0 ? [] : out.slice(0, 8);
     return { content, error: false, citations, charts, followups, webSources: webOut, steps };
   }
 }
