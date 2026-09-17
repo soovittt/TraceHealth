@@ -86,7 +86,7 @@ export const ask = mutation({
     question: v.string(),
     conversationId: v.optional(v.id("conversations")),
     context: v.optional(v.string()),
-    attachment: v.optional(v.object({ filename: v.string(), text: v.string() })),
+    attachment: v.optional(v.object({ filename: v.string(), text: v.optional(v.string()), storageId: v.optional(v.id("_storage")), kind: v.optional(v.string()) })),
   },
   handler: async (ctx, { patientId, question, conversationId, context, attachment }): Promise<Id<"conversations">> => {
     await assertWrite(ctx, patientId);
@@ -175,7 +175,7 @@ async function runAgent(
     patientId: Id<"patients">;
     question: string;
     context?: string;
-    attachment?: { filename: string; text: string };
+    attachment?: { filename: string; text?: string; storageId?: Id<"_storage">; kind?: string };
     shareToken?: string;
     emit?: (steps: any[]) => Promise<any>;
   },
@@ -205,6 +205,26 @@ async function runAgent(
   if (!apiKey) return fail("The AI assistant needs an OpenAI key. Run: npx convex env set OPENAI_API_KEY sk-…");
 
   {
+    // 0) If an image/PDF is attached, read it with vision and ingest the records
+    //    FIRST — so the snapshot, charts, and citations below all include them.
+    let attachmentBlock = "";
+    if (attachment?.storageId && (attachment.kind === "image" || attachment.kind === "pdf")) {
+      await begin(`Reading ${attachment.filename}`);
+      const ex: any = await ctx.runAction(internal.ingest.extractAttachment, { patientId, filename: attachment.filename, storageId: attachment.storageId, kind: attachment.kind });
+      if (ex && ex.counts) {
+        const c = ex.counts;
+        const total = c.observations + c.medications + c.conditions + c.encounters + c.allergies;
+        const previewText = (ex.preview ?? []).map((p: any) => `- ${p.text}${p.sub ? ` (${p.sub})` : ""}`).join("\n");
+        attachmentBlock = `ATTACHED ${attachment.kind.toUpperCase()} ("${attachment.filename}") — I read it with vision and ADDED these ${total} record(s) to the patient's record${ex.skipped ? ` (${ex.skipped} duplicate(s) skipped)` : ""}:\n${previewText || "(no structured records found)"}\n\nTell the user you've added them, then explain in plain language what they mean for this patient and how they relate to the rest of the record.\n\n`;
+        await done(total > 0 ? `Added ${total} record${total === 1 ? "" : "s"} to your record` : "No structured records found");
+      } else {
+        attachmentBlock = `ATTACHED ${attachment.kind.toUpperCase()} ("${attachment.filename}") could not be read. Let the user know.\n\n`;
+        await done("Couldn't read the attachment");
+      }
+    } else if (attachment?.text) {
+      attachmentBlock = `ATTACHED FILE ("${attachment.filename}") — analyze it and relate it to the record:\n"""\n${attachment.text.slice(0, 12000)}\n"""\n\n`;
+    }
+
     await begin("Reading your health record");
     const s: any = await ctx.runQuery(internal.assistant.aiSnapshot, { patientId });
     const srcCount = new Set(s.docs.map((d: any) => d.org)).size;
@@ -275,7 +295,7 @@ async function runAgent(
         role: "user",
         content:
           (context ? `CURRENT VIEW: The user is looking at "${context}". Resolve "this/that/the chart" to it.\n\n` : "") +
-          (attachment ? `ATTACHED FILE ("${attachment.filename}") — analyze it and relate it to the record:\n"""\n${attachment.text.slice(0, 12000)}\n"""\n\n` : "") +
+          attachmentBlock +
           `RECORD OVERVIEW (JSON):\n${JSON.stringify(overview)}\n\nQUESTION: ${question}`,
       },
     ];
@@ -392,7 +412,7 @@ export const answer = internalAction({
     question: v.string(),
     messageId: v.id("chatMessages"),
     context: v.optional(v.string()),
-    attachment: v.optional(v.object({ filename: v.string(), text: v.string() })),
+    attachment: v.optional(v.object({ filename: v.string(), text: v.optional(v.string()), storageId: v.optional(v.id("_storage")), kind: v.optional(v.string()) })),
   },
   handler: async (ctx, { patientId, question, messageId, context, attachment }) => {
     const res = await runAgent(ctx, {

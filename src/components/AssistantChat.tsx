@@ -50,8 +50,10 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
   const ask = useMutation(api.assistant.ask);
   const deleteConversation = useMutation(api.assistant.deleteConversation);
 
+  const generateUploadUrl = useMutation(api.ingest.generateUploadUrl);
   const [input, setInput] = useState("");
-  const [attached, setAttached] = useState<{ filename: string; text: string } | null>(null);
+  const [attached, setAttached] = useState<{ filename: string; text?: string; storageId?: any; kind?: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -72,10 +74,26 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (!f) return;
-    const text = await f.text().catch(() => "");
-    setAttached({ filename: f.name, text: text.slice(0, 20000) });
     e.target.value = "";
+    if (!f) return;
+    const name = f.name.toLowerCase();
+    const isImage = f.type.startsWith("image/");
+    const isPdf = f.type === "application/pdf" || name.endsWith(".pdf");
+    if (isImage || isPdf) {
+      // Image/PDF → upload to storage; the assistant reads it with vision + ingests it.
+      setUploading(true);
+      try {
+        const url = await generateUploadUrl();
+        const up = await fetch(url, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f });
+        const { storageId } = await up.json();
+        setAttached({ filename: f.name, storageId, kind: isImage ? "image" : "pdf" });
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      const text = await f.text().catch(() => "");
+      setAttached({ filename: f.name, text: text.slice(0, 20000) });
+    }
   }
 
   async function send(q?: string) {
@@ -84,9 +102,12 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
     setInput("");
     const att = attached;
     setAttached(null);
+    const defaultQ = att?.storageId
+      ? "Read this, add anything relevant to my record, and explain what it means."
+      : "Please analyze the attached file and summarize the key findings.";
     const convId = await ask({
       patientId,
-      question: text || "Please analyze the attached file and summarize the key findings.",
+      question: text || defaultQ,
       conversationId: conversationId ?? undefined,
       context: describeView(view, metricCode),
       attachment: att ?? undefined,
@@ -280,17 +301,19 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
 
       {/* composer */}
       <div className="border-t border-line px-3 py-2.5">
-        {attached && (
+        {(attached || uploading) && (
           <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-canvas px-2 py-1 text-xs text-ink-700">
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3">
               <path d="M9 3H4v10h8V6M9 3l3 3M9 3v3h3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span className="truncate">{attached.filename}</span>
-            <button className="ml-auto text-ink-400 hover:text-bad" onClick={() => setAttached(null)}>✕</button>
+            <span className="truncate">{uploading ? "Uploading…" : attached?.filename}</span>
+            {attached?.kind && <span className="tag shrink-0">{attached.kind === "image" ? "Image" : attached.kind === "pdf" ? "PDF" : ""}</span>}
+            {attached && <span className="text-2xs text-ink-400">{attached.storageId ? "will be read & added to your record" : ""}</span>}
+            {attached && <button className="ml-auto text-ink-400 hover:text-bad" onClick={() => setAttached(null)}>✕</button>}
           </div>
         )}
         <div className="flex items-end gap-2">
-          <input ref={fileRef} type="file" className="hidden" accept=".txt,.csv,.json,.md,.xml,.fhir,.html" onChange={onFile} />
+          <input ref={fileRef} type="file" className="hidden" accept=".txt,.csv,.json,.md,.xml,.fhir,.html,.pdf,image/*" onChange={onFile} />
           <button
             onClick={() => fileRef.current?.click()}
             title="Attach a file"
@@ -313,7 +336,7 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
             placeholder={attached ? "Ask about this file…" : "Ask about your health…"}
             className="input max-h-28 flex-1 resize-none py-2 text-sm"
           />
-          <button className="btn-primary px-3 py-2" onClick={() => send()} disabled={busy || (!input.trim() && !attached)}>
+          <button className="btn-primary px-3 py-2" onClick={() => send()} disabled={busy || uploading || (!input.trim() && !attached)}>
             {busy ? "…" : "Send"}
           </button>
         </div>

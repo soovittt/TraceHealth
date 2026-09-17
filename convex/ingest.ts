@@ -324,6 +324,42 @@ export const runIngest = internalAction({
   },
 });
 
+// Inline chat attachment: read an image/PDF with vision, insert the structured
+// records into the patient's record, and return what landed (so the assistant can
+// explain it in the same turn). Synchronous — returns the result, no job row.
+export const extractAttachment = internalAction({
+  args: { patientId: v.id("patients"), filename: v.string(), storageId: v.id("_storage"), kind: v.string() },
+  handler: async (ctx, { patientId, filename, storageId, kind }): Promise<any> => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return null;
+    let s: any;
+    let excerpt: string;
+    if (kind === "pdf") {
+      const blob = await ctx.storage.get(storageId);
+      if (!blob) return null;
+      const dataUrl = await pdfDataUrl(blob);
+      s = await openaiExtract(apiKey, "gpt-4o", " The document is a PDF medical record — read every page and extract every measurable value, medication, diagnosis, visit, and allergy.", [
+        { type: "text", text: "Extract every medical record in this PDF as strict JSON." },
+        { type: "file", file: { filename, file_data: dataUrl } },
+      ]);
+      excerpt = `Extracted from PDF: ${filename}`;
+    } else {
+      const url = await ctx.storage.getUrl(storageId);
+      if (!url) return null;
+      s = await openaiExtract(apiKey, "gpt-4o", " Read all values visible in the image (a photo or scan of a lab report, after-visit summary, or medication list). If a date is missing, use the document date.", [
+        { type: "text", text: "Extract every medical record visible in this image as JSON." },
+        { type: "image_url", image_url: { url } },
+      ]);
+      excerpt = `Extracted from image: ${filename}`;
+    }
+    const r: any = await ctx.runMutation(internal.ingest.insertExtracted, {
+      patientId, filename, org: s.org, excerpt, storageId,
+      observations: s.observations, medications: s.medications, conditions: s.conditions, encounters: s.encounters, allergies: s.allergies,
+    });
+    return { documentId: r.documentId, counts: r.counts, skipped: r.skipped, preview: r.preview, org: r.org };
+  },
+});
+
 // ---- structured re-import (closes the export→import loop) -----------------
 // Accepts a TraceHealth JSON export OR a FHIR R4 Bundle and inserts records
 // directly — no AI needed, deterministic. Provenance "imported".
