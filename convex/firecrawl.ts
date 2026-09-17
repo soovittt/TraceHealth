@@ -15,49 +15,58 @@ async function fcScrapeJson(apiKey: string, url: string, prompt: string, schema:
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
-// Live cash/retail drug prices from GoodRx's public drug page as typed JSON.
-// Public drug name only — never patient data. Returns
-// { drug, prices:[{pharmacy, price, quantity?, sourceUrl}], genericAvailable } | { error } | null.
+// Live cash/retail drug prices from TWO public sources in parallel: GoodRx
+// (pharmacy comparison) + Cost Plus Drugs (transparent flat price). Public drug
+// name only — never patient data. Returns
+// { drug, prices:[{pharmacy, price, quantity?, sourceUrl}], sources:[{title,url}] } | { error } | null.
 export const drugPrice = internalAction({
   args: { drug: v.string(), strength: v.optional(v.string()), zip: v.optional(v.string()) },
   handler: async (ctx, { drug }) => {
     const apiKey = process.env.FIRECRAWL_API_KEY;
     if (!apiKey) return null;
-    // GoodRx generic-drug pages are at a predictable slug (e.g. /atorvastatin).
-    const slug = slugify(drug.replace(/\b\d+\s*(mg|mcg|ml|units?)\b/gi, ""));
-    const url = `https://www.goodrx.com/${slug}`;
-    const schema = {
+    const base = slugify(drug.replace(/\b\d+\s*(mg|mcg|ml|units?)\b/gi, ""));
+    const goodrxUrl = `https://www.goodrx.com/${base}`;
+
+    const goodrxSchema = {
       type: "object",
       properties: {
-        drug: { type: "string" },
         genericAvailable: { type: "boolean" },
-        prices: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              pharmacy: { type: "string" },
-              price: { type: "number" },
-              quantity: { type: "string" },
-            },
-            required: ["pharmacy", "price"],
-          },
-        },
+        prices: { type: "array", items: { type: "object", properties: { pharmacy: { type: "string" }, price: { type: "number" }, quantity: { type: "string" } }, required: ["pharmacy", "price"] } },
       },
       required: ["prices"],
     };
-    try {
-      const data = await fcScrapeJson(apiKey, url, `Extract the current cash/coupon prices for ${drug} shown on this GoodRx page. For each pharmacy listed give its name, the price in USD as a plain number, and the quantity it covers. Also whether a generic is available. Only real listed prices.`, schema);
-      const prices = (Array.isArray(data?.prices) ? data.prices : [])
-        .filter((p: any) => typeof p?.price === "number" && p.price > 0)
-        .map((p: any) => ({ pharmacy: String(p.pharmacy ?? "Pharmacy"), price: Number(p.price), quantity: p.quantity ? String(p.quantity) : undefined, sourceUrl: url }))
-        .sort((a: any, b: any) => a.price - b.price)
-        .slice(0, 6);
-      if (!prices.length) return { drug, prices: [], note: "No public prices found for that name.", source: url };
-      return { drug, prices, genericAvailable: !!data?.genericAvailable, source: url };
-    } catch (e: any) {
-      return { error: String(e?.message ?? e).slice(0, 150) };
+    const costPlusSchema = { type: "object", properties: { price: { type: "number" }, quantity: { type: "string" } }, required: ["price"] };
+
+    // Run both sources concurrently; either can fail without killing the other.
+    const [goodrx, costPlus] = await Promise.all([
+      fcScrapeJson(apiKey, goodrxUrl, `Extract current cash/coupon prices for ${drug} on this GoodRx page: for each pharmacy, its name, the price in USD as a plain number, and the quantity it covers. Also whether a generic is available. Only real listed prices.`, goodrxSchema).catch(() => null),
+      (async () => {
+        try {
+          // Cost Plus product slugs are unpredictable — find the page via search, then scrape it.
+          const results = await fcSearch(apiKey, `${drug} price costplusdrugs.com`, 5);
+          const hit = results.find((r: any) => /costplusdrugs\.com\/medications\//.test(String(r.url || "")));
+          if (!hit) return null;
+          const cpUrl = String(hit.url);
+          const d = await fcScrapeJson(apiKey, cpUrl, `Extract the Cost Plus Drugs total price for ${drug}: the price in USD as a plain number and the quantity/supply it covers. Only the real listed price.`, costPlusSchema);
+          return d && typeof d.price === "number" && d.price > 0 ? { price: Number(d.price), quantity: d.quantity ? String(d.quantity) : undefined, url: cpUrl } : null;
+        } catch { return null; }
+      })(),
+    ]);
+
+    const prices: any[] = [];
+    const sources: { title: string; url: string }[] = [];
+    if (goodrx && Array.isArray(goodrx.prices)) {
+      const gp = goodrx.prices.filter((p: any) => typeof p?.price === "number" && p.price > 0)
+        .map((p: any) => ({ pharmacy: String(p.pharmacy ?? "Pharmacy"), price: Number(p.price), quantity: p.quantity ? String(p.quantity) : undefined, sourceUrl: goodrxUrl }));
+      if (gp.length) { prices.push(...gp); sources.push({ title: "GoodRx", url: goodrxUrl }); }
     }
+    if (costPlus) {
+      prices.push({ pharmacy: "Cost Plus Drugs", price: costPlus.price, quantity: costPlus.quantity, sourceUrl: costPlus.url });
+      sources.push({ title: "Cost Plus Drugs", url: costPlus.url });
+    }
+    if (!prices.length) return { drug, prices: [], sources: [], note: "No public prices found for that name." };
+    prices.sort((a, b) => a.price - b.price);
+    return { drug, prices: prices.slice(0, 8), genericAvailable: !!goodrx?.genericAvailable, sources };
   },
 });
 

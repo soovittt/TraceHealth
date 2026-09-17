@@ -319,8 +319,11 @@ async function runAgent(
             const drug = String(a.drug ?? "").slice(0, 60);
             const res: any = await ctx.runAction(internal.firecrawl.drugPrice, { drug });
             if (res && Array.isArray(res.prices) && res.prices.length) {
-              if (res.source) webSources.push({ title: `GoodRx — ${drug} prices`, url: res.source });
-              r = { result: { drug, prices: res.prices, genericAvailable: res.genericAvailable, source: res.source, note: "Live cash/coupon prices — estimates, not insurance." }, label: `Live prices for ${drug}`, detail: `${res.prices.length} pharmacies · from $${Math.min(...res.prices.map((p: any) => p.price))}` };
+              const seenUrls = new Set(webSources.map((s) => s.url));
+              for (const s of (res.sources ?? []) as any[]) {
+                if (s?.url && !seenUrls.has(s.url)) { webSources.push({ title: s.title, url: s.url }); seenUrls.add(s.url); }
+              }
+              r = { result: { drug, prices: res.prices, genericAvailable: res.genericAvailable, sources: res.sources, note: "Live cash/coupon prices — estimates, not insurance." }, label: `Live prices for ${drug}`, detail: `${res.prices.length} pharmacies · from $${Math.min(...res.prices.map((p: any) => p.price))}` };
             } else {
               r = { result: { drug, prices: [], unavailable: res?.error ?? res?.note ?? "No live prices found." }, label: `Live prices for ${drug}`, detail: "unavailable" };
             }
