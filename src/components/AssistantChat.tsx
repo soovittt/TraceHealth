@@ -231,9 +231,9 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
                             target="_blank"
                             rel="noopener noreferrer"
                             title={w.title}
-                            className="flex items-center gap-1 rounded border border-line bg-canvas px-1.5 py-0.5 text-2xs text-accent hover:underline"
+                            className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-2xs text-ink-700 transition-colors hover:border-accent-line hover:text-accent"
                           >
-                            <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M5 3H3v6h6V7M7 3h2v2M9 3 5.5 6.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            <img src={`https://www.google.com/s2/favicons?domain=${hostOf(w.url)}&sz=32`} alt="" className="h-3.5 w-3.5 rounded-sm" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                             {hostOf(w.url)}
                           </a>
                         ))}

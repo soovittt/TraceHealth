@@ -306,7 +306,10 @@ async function runAgent(
             const topic = String(a.topic ?? "").slice(0, 120);
             const ref: any = await ctx.runAction(internal.firecrawl.referenceLookup, { topic });
             if (ref && ref.source) {
-              webSources.push({ title: ref.source.title, url: ref.source.url });
+              const seenUrls = new Set(webSources.map((s) => s.url));
+              for (const s of (ref.sources ?? [ref.source]) as any[]) {
+                if (s?.url && !seenUrls.has(s.url)) { webSources.push({ title: s.title, url: s.url }); seenUrls.add(s.url); }
+              }
               r = { result: { topic, summary: ref.summary, source: ref.source, note: "General info from a trusted public source — not medical advice." }, label: `Looked up “${topic}” from a trusted source`, detail: hostOf(ref.source.url) };
             } else {
               r = { result: { topic, unavailable: ref?.error ? `reference lookup error: ${ref.error}` : "Reference lookup unavailable (Firecrawl not configured)." }, label: `Looked up “${topic}”`, detail: "no source" };

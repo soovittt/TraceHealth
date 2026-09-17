@@ -79,7 +79,10 @@ export default function DoctorAssistant({ token }: { token: string | null }) {
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span className="text-2xs text-ink-400">Sources:</span>
                   {m.webSources.map((w: any, j: number) => (
-                    <a key={j} href={w.url} target="_blank" rel="noopener noreferrer" className="rounded border border-line bg-canvas px-1.5 py-0.5 text-2xs text-accent hover:underline">{hostOf(w.url)}</a>
+                    <a key={j} href={w.url} target="_blank" rel="noopener noreferrer" title={w.title} className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-2xs text-ink-700 hover:border-accent-line hover:text-accent">
+                      <img src={`https://www.google.com/s2/favicons?domain=${hostOf(w.url)}&sz=32`} alt="" className="h-3.5 w-3.5 rounded-sm" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      {hostOf(w.url)}
+                    </a>
                   ))}
                 </div>
               )}

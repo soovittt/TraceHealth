@@ -109,7 +109,7 @@ export const referenceLookup = internalAction({
   handler: async (
     ctx,
     { topic, hint },
-  ): Promise<{ summary: string; source: { title: string; url: string } } | { error: string } | null> => {
+  ): Promise<{ summary: string; source: { title: string; url: string }; sources: { title: string; url: string }[] } | { error: string } | null> => {
     const apiKey = process.env.FIRECRAWL_API_KEY;
     if (!apiKey) return null;
     const openaiKey = process.env.OPENAI_API_KEY;
@@ -121,13 +121,25 @@ export const referenceLookup = internalAction({
     } catch (e: any) {
       return { error: String(e?.message ?? e).slice(0, 150) };
     }
-    const pick =
-      results.find((r) => r.markdown && TRUSTED.some((d) => String(r.url || "").includes(d))) ||
-      results.find((r) => r.markdown);
+    // Prefer trusted domains; summarize the best one but cite the top few.
+    const trusted = results.filter((r) => TRUSTED.some((d) => String(r.url || "").includes(d)));
+    const pool = trusted.length ? trusted : results;
+    const pick = pool.find((r) => r.markdown) || pool[0];
     if (!pick) return null;
 
     const source = { title: String(pick.title || pick.url), url: String(pick.url) };
+    // Up to 3 distinct-domain sources, primary first.
+    const seen = new Set<string>();
+    const sources: { title: string; url: string }[] = [];
+    for (const r of [pick, ...pool]) {
+      const url = String(r.url || "");
+      const host = url.replace(/^https?:\/\//, "").split("/")[0];
+      if (!url || seen.has(host)) continue;
+      seen.add(host);
+      sources.push({ title: String(r.title || url), url });
+      if (sources.length >= 3) break;
+    }
     const summary = openaiKey ? await summarize(openaiKey, model, topic, String(pick.markdown)) : String(pick.description || "").slice(0, 400);
-    return { summary: summary || String(pick.description || "").slice(0, 400), source };
+    return { summary: summary || String(pick.description || "").slice(0, 400), source, sources };
   },
 });
