@@ -34,6 +34,7 @@ export default function Integrations() {
   const connections = useQuery(api.connections.listMyConnections, patientId ? { patientId } : "skip");
   const docs = useQuery(api.health.listDocuments, patientId ? { patientId } : "skip");
   const syncConn = useAction(api.fhir.syncConnection);
+  const connectSandbox = useAction(api.fhir.connectSandbox);
   const removeConn = useMutation(api.connections.removeConnection);
   const disconnectSource = useMutation(api.mutations.disconnectSource);
   const searchProviders = useAction(api.directory.searchProviders);
@@ -80,6 +81,19 @@ export default function Integrations() {
   async function connect(p: Provider) {
     setBusy(`c:${p.id}`);
     setMsg(null);
+    // The SMART sandbox connects instantly via its OPEN FHIR endpoint — one click,
+    // no OAuth redirect / consent. Real providers still go through SMART OAuth.
+    if (p.id === "smart-sandbox" && patientId) {
+      try {
+        const r = await connectSandbox({ patientId });
+        setMsg(`Connected — pulled ${r.counts} records from ${r.patientName}.`);
+      } catch (e: any) {
+        setMsg(e?.message ?? "Could not connect the sandbox.");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
     try {
       await startConnect(p); // redirects the browser to the provider
     } catch (e: any) {
@@ -189,8 +203,8 @@ export default function Integrations() {
                   <span className="mr-1 h-1.5 w-1.5 rounded-full bg-good" /> Connected
                 </span>
               ) : connectable ? (
-                <button className="btn-secondary shrink-0 text-xs" onClick={() => connect(p)} disabled={busy === `c:${p.id}`}>
-                  {busy === `c:${p.id}` ? "…" : "Connect"}
+                <button data-tour={p.id === "smart-sandbox" ? "connect-btn" : undefined} className="btn-primary shrink-0 text-xs" onClick={() => connect(p)} disabled={busy === `c:${p.id}`}>
+                  {busy === `c:${p.id}` ? "Connecting…" : "Connect"}
                 </button>
               ) : (
                 <button className="btn-ghost shrink-0 text-xs" disabled>

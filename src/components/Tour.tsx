@@ -9,13 +9,13 @@ type Step = { target: string | null; title: string; body: string };
 
 const STEPS: Step[] = [
   { target: null, title: "Welcome to TraceHealth 👋", body: "Your whole health history in one record — pulled from every provider, understood by an AI. Here's the 30-second tour." },
-  { target: "load-sample", title: "Start here", body: "Load a full sample record in one click — 300+ labs, meds and conditions flow in over FHIR. (Or connect your own provider / drop a PDF.)" },
-  { target: "nav-home", title: "Your Overview", body: "What needs your attention, your key metrics, and recent activity — at a glance." },
+  { target: "connect-btn", title: "Start here — connect a provider", body: "Click Connect on the SMART sandbox to pull a full record over FHIR (labs, meds, conditions). This is how your data comes in." },
+  { target: "nav-import", title: "Or add data yourself", body: "Drop a PDF, snap a photo of a lab report, or paste text — the AI extracts it into your record." },
+  { target: "nav-home", title: "Your Overview", body: "Once you've connected, this shows what needs attention, your key metrics, and recent activity." },
   { target: "nav-metric", title: "Trends", body: "Every lab as a real trend line over the years, flagged when it's out of range." },
-  { target: "nav-conflicts", title: "Review", body: "Combining records across providers surfaces conflicts and stale meds to reconcile." },
   { target: "nav-ask", title: "Ask the AI", body: "Ask anything about your health — grounded in your record, cited to sources, even live drug prices." },
   { target: "share", title: "Share with a clinician", body: "Hand any doctor a clean, read-only snapshot with one link — no account needed on their end." },
-  { target: null, title: "That's it — you're set.", body: "Click “Load a sample record” to explore with real data, then try Ask AI. Enjoy." },
+  { target: null, title: "That's it — you're set.", body: "Hit Connect to bring in a record, then try Ask AI. Enjoy." },
 ];
 
 export default function Tour() {

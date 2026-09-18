@@ -26,7 +26,7 @@ export default function Landing() {
     setGuesting(true);
     try {
       await signIn("anonymous");
-      go("home"); // the app resolver auto-creates this guest's patient
+      go("integrations"); // land on Connections so they add a provider (no auto-load)
     } catch {
       setGuesting(false);
     }
