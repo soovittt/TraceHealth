@@ -26,7 +26,7 @@ export default function Landing() {
     setGuesting(true);
     try {
       await signIn("anonymous");
-      go("integrations"); // land on Connections so they add a provider (no auto-load)
+      go("home"); // land on the app; the tour then walks them to Connections to add data
     } catch {
       setGuesting(false);
     }

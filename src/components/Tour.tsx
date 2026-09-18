@@ -5,21 +5,23 @@ import { useStore } from "../lib/store";
 // shows a "Step X of N" tooltip with Back / Next / Skip. Steps with target=null
 // render a centered card (intro/outro). Robust to layout — recomputes on resize.
 
-type Step = { target: string | null; title: string; body: string };
+// `nav` navigates the app to that view when the step opens — so the tour walks
+// through the REAL screens a person uses, not just static coachmarks.
+type Step = { target: string | null; title: string; body: string; nav?: "home" | "import" | "integrations" };
 
 const STEPS: Step[] = [
-  { target: null, title: "Welcome to TraceHealth 👋", body: "Your whole health history in one record — pulled from every provider, understood by an AI. Here's the 30-second tour." },
-  { target: "connect-btn", title: "Start here — connect a provider", body: "Click Connect on the SMART sandbox to pull a full record over FHIR (labs, meds, conditions). This is how your data comes in." },
-  { target: "nav-import", title: "Or add data yourself", body: "Drop a PDF, snap a photo of a lab report, or paste text — the AI extracts it into your record." },
-  { target: "nav-home", title: "Your Overview", body: "Once you've connected, this shows what needs attention, your key metrics, and recent activity." },
-  { target: "nav-metric", title: "Trends", body: "Every lab as a real trend line over the years, flagged when it's out of range." },
+  { target: null, title: "Welcome to TraceHealth 👋", body: "Your whole health history in one record. Quick 30-second tour — then you'll bring in your first record.", nav: "home" },
+  { target: "nav-home", title: "Your Overview", body: "Your dashboard — what needs attention, key metrics, recent activity. It fills in once you add data." },
+  { target: "nav-metric", title: "Trends", body: "Every lab becomes a real trend line over the years, flagged when it's out of range." },
   { target: "nav-ask", title: "Ask the AI", body: "Ask anything about your health — grounded in your record, cited to sources, even live drug prices." },
-  { target: "share", title: "Share with a clinician", body: "Hand any doctor a clean, read-only snapshot with one link — no account needed on their end." },
-  { target: null, title: "That's it — you're set.", body: "Hit Connect to bring in a record, then try Ask AI. Enjoy." },
+  { target: "dropzone", title: "Add your own data", body: "Drop a PDF, snap a photo of a lab report, or paste text — the AI reads it and adds it to your record.", nav: "import" },
+  { target: "connect-btn", title: "Or connect a provider", body: "One click on Connect pulls a full record over FHIR — labs, meds, conditions — no login dance.", nav: "integrations" },
+  { target: "share", title: "Share with a clinician", body: "Hand any doctor a clean, read-only snapshot with one link — no account on their end." },
+  { target: "connect-btn", title: "You're all set 🎉", body: "Bring in a record now — click Connect below, or add your own data. Then try Ask AI.", nav: "integrations" },
 ];
 
 export default function Tour() {
-  const { tourOpen, endTour } = useStore();
+  const { tourOpen, endTour, go } = useStore();
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
@@ -28,6 +30,13 @@ export default function Tour() {
 
   // Reset to first step whenever the tour (re)opens.
   useEffect(() => { if (tourOpen) setI(0); }, [tourOpen]);
+
+  // Drive the app to this step's screen so the tour walks the real flow.
+  useEffect(() => {
+    if (!tourOpen) return;
+    if (step.nav) go(step.nav);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourOpen, i]);
 
   useLayoutEffect(() => {
     if (!tourOpen) return;

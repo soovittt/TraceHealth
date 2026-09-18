@@ -144,6 +144,7 @@ export default function ImportScreen() {
           paste as a secondary affordance. No classifying your file. */}
       <div className="card p-2">
         <label
+          data-tour="dropzone"
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); onFiles(e.dataTransfer.files); }}
