@@ -94,7 +94,7 @@ export const ensureMyPatient = mutation({
     if (existing) return existing._id;
     const user = await ctx.db.get(userId);
     return ctx.db.insert("patients", {
-      name: (user as any)?.name ?? (user as any)?.email ?? "My health",
+      name: (user as any)?.name ?? (user as any)?.email ?? "Guest",
       age: 0,
       isDemo: false,
       userId,

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { Wordmark } from "./brand";
@@ -7,14 +8,28 @@ import { Wordmark } from "./brand";
 export default function Landing() {
   const { setPatientId, go, openAuth } = useStore();
   const { isAuthenticated } = useConvexAuth();
+  const { signIn } = useAuthActions();
   const ensure = useMutation(api.patients.ensureMyPatient);
   const [entering, setEntering] = useState(false);
+  const [guesting, setGuesting] = useState(false);
 
   async function openMyDashboard() {
     setEntering(true);
     const pid = await ensure({});
     setPatientId(pid);
     go("home");
+  }
+
+  // Zero-typing entry: create a throwaway guest account and drop straight into
+  // the app, where one click loads a full sample record.
+  async function tryAsGuest() {
+    setGuesting(true);
+    try {
+      await signIn("anonymous");
+      go("home"); // the app resolver auto-creates this guest's patient
+    } catch {
+      setGuesting(false);
+    }
   }
 
   return (
@@ -33,7 +48,7 @@ export default function Landing() {
             ) : (
               <>
                 <button className="font-medium text-ink-700 hover:text-ink-900" onClick={() => openAuth("signIn")}>Sign in</button>
-                <button className="btn-primary" onClick={() => openAuth("signUp")}>Get started</button>
+                <button className="btn-primary" onClick={tryAsGuest} disabled={guesting}>{guesting ? "Setting up…" : "Try it"}</button>
               </>
             )}
           </div>
@@ -54,11 +69,13 @@ export default function Landing() {
             source-traceable timeline — with an AI that reasons over your data and cites every claim.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-2.5">
-            <button className="btn-primary px-4 py-2" onClick={() => openAuth("signUp")}>Get started — it's free</button>
-            <button className="btn-secondary px-4 py-2" onClick={() => openAuth("signIn")}>Sign in</button>
+            <button className="btn-primary px-4 py-2" onClick={tryAsGuest} disabled={guesting}>
+              {guesting ? "Setting up…" : "Try it — no signup"}
+            </button>
+            <button className="btn-secondary px-4 py-2" onClick={() => openAuth("signUp")}>Create an account</button>
           </div>
           <div className="mt-3 flex items-center gap-2 text-xs text-ink-400">
-            <span className="mono">FHIR sync</span><Dot /><span className="mono">AI assistant</span><Dot /><span className="mono">export & share</span>
+            <span>One click, no email — loads a full sample record you can explore.</span>
           </div>
           <dl className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-line pt-6">
             <Feature k="One timeline" v="Every lab, visit & med across providers" />
@@ -153,7 +170,7 @@ export default function Landing() {
           <h2 className="text-2xl font-semibold text-ink-900 sm:text-3xl">Start building your health history</h2>
           <p className="mx-auto mt-3 max-w-md text-sm text-ink-500">Create a free account, connect a provider, and see years of records reconstruct into one timeline.</p>
           <div className="mt-6 flex justify-center gap-2.5">
-            <button className="btn-primary px-4 py-2" onClick={() => openAuth("signUp")}>Get started — it's free</button>
+            <button className="btn-primary px-4 py-2" onClick={tryAsGuest} disabled={guesting}>{guesting ? "Setting up…" : "Try it — no signup"}</button>
             <button className="btn-secondary px-4 py-2" onClick={() => openAuth("signIn")}>Sign in</button>
           </div>
         </div>
