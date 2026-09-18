@@ -15,9 +15,9 @@ const STEPS: Step[] = [
   { target: "nav-metric", title: "Trends", body: "Every lab becomes a real trend line over the years, flagged when it's out of range." },
   { target: "nav-ask", title: "Ask the AI", body: "Ask anything about your health — grounded in your record, cited to sources, even live drug prices." },
   { target: "dropzone", title: "Add your own data", body: "Drop a PDF, snap a photo of a lab report, or paste text — the AI reads it and adds it to your record.", nav: "import" },
-  { target: "connect-btn", title: "Or connect a provider", body: "One click on Connect pulls a full record over FHIR — labs, meds, conditions — no login dance.", nav: "integrations" },
+  { target: "connect-btn", title: "Or connect a provider", body: "Click Connect, log into the provider over SMART on FHIR and authorize — your full record syncs in (labs, meds, conditions).", nav: "integrations" },
   { target: "share", title: "Share with a clinician", body: "Hand any doctor a clean, read-only snapshot with one link — no account on their end." },
-  { target: "connect-btn", title: "You're all set 🎉", body: "Bring in a record now — click Connect below, or add your own data. Then try Ask AI.", nav: "integrations" },
+  { target: "connect-btn", title: "You're all set 🎉", body: "Bring in a record now — click Connect and authorize, or add your own data. Then try Ask AI.", nav: "integrations" },
 ];
 
 export default function Tour() {

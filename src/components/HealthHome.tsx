@@ -213,7 +213,7 @@ function EmptyRecord({ name, go }: { name: string; go: (v: any) => void }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-ink-900">Connect a provider</span>
-          <span className="block text-xs text-ink-600">Pull a full record over FHIR — labs, meds, conditions — in one click. The best way to start.</span>
+          <span className="block text-xs text-ink-600">Log in and authorize over SMART on FHIR — your full record syncs in. The best way to start.</span>
         </span>
         <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>
       </button>

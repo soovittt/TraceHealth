@@ -34,7 +34,6 @@ export default function Integrations() {
   const connections = useQuery(api.connections.listMyConnections, patientId ? { patientId } : "skip");
   const docs = useQuery(api.health.listDocuments, patientId ? { patientId } : "skip");
   const syncConn = useAction(api.fhir.syncConnection);
-  const connectSandbox = useAction(api.fhir.connectSandbox);
   const removeConn = useMutation(api.connections.removeConnection);
   const disconnectSource = useMutation(api.mutations.disconnectSource);
   const searchProviders = useAction(api.directory.searchProviders);
@@ -81,21 +80,10 @@ export default function Integrations() {
   async function connect(p: Provider) {
     setBusy(`c:${p.id}`);
     setMsg(null);
-    // The SMART sandbox connects instantly via its OPEN FHIR endpoint — one click,
-    // no OAuth redirect / consent. Real providers still go through SMART OAuth.
-    if (p.id === "smart-sandbox" && patientId) {
-      try {
-        const r = await connectSandbox({ patientId });
-        setMsg(`Connected — pulled ${r.counts} records from ${r.patientName}.`);
-      } catch (e: any) {
-        setMsg(e?.message ?? "Could not connect the sandbox.");
-      } finally {
-        setBusy(null);
-      }
-      return;
-    }
     try {
-      await startConnect(p); // redirects the browser to the provider
+      // Real SMART on FHIR: redirect to the provider's login + consent, then the
+      // /callback handler exchanges the code and syncs the record.
+      await startConnect(p);
     } catch (e: any) {
       setMsg(e?.message ?? "Could not start the connection.");
       setBusy(null);
