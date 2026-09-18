@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { Sparkline } from "./charts";
@@ -189,33 +189,64 @@ function Sep() {
 }
 
 function EmptyRecord({ name, go }: { name: string; go: (v: any) => void }) {
+  const { patientId } = useStore();
+  const connectSandbox = useAction(api.fhir.connectSandbox);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const first = name.split(" ")[0] || "there";
+
+  async function loadSample() {
+    if (!patientId) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      await connectSandbox({ patientId });
+      go("home"); // record now populated — reactive queries refresh
+    } catch (e: any) {
+      setErr(e?.message ?? "Couldn't load the sample record.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const cards = [
-    { t: "Connect a provider", d: "Pull records over FHIR", tag: "Recommended", to: "integrations" },
-    { t: "Import a document", d: "Paste text, or a FHIR/JSON file", tag: "", to: "import" },
-    { t: "Add manually", d: "Enter a lab, med or condition", tag: "", to: "import" },
+    { t: "Import a document", d: "Drop a PDF, photo, or FHIR/JSON file", to: "import" },
+    { t: "Connect a real provider", d: "SMART on FHIR (Epic, sandbox)", to: "integrations" },
+    { t: "Ask the AI", d: "It answers from your record", to: "ask" },
   ];
+
   return (
     <div className="mx-auto max-w-2xl animate-fade-in">
       <h1 className="text-2xl font-semibold text-ink-900">Welcome, {first}.</h1>
       <p className="mt-1 text-sm text-ink-500">
-        Your record is empty. Bring your health history in — everything normalizes into one
-        source-traceable timeline you can explore and ask an AI about.
+        Your record is empty. Load a full sample record in one click, or bring your own — everything
+        normalizes into one source-traceable timeline you can explore and ask an AI about.
       </p>
-      <div className="mt-5">
-        <AskBar placeholder="Ask the AI anything — it'll answer from your records once you add some…" />
-      </div>
+
+      {/* one-click, zero-friction: pull a data-rich sandbox patient, no OAuth */}
+      <button
+        onClick={loadSample}
+        disabled={loading}
+        className="mt-5 flex w-full items-center gap-3 rounded-xl border border-accent-line bg-accent-soft p-4 text-left transition-colors hover:brightness-[0.99] disabled:opacity-60"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent text-white">
+          {loading ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" /> : <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink-900">{loading ? "Loading a full sample record…" : "Load a sample record — one click"}</span>
+          <span className="block text-xs text-ink-600">Pulls a data-rich patient over FHIR (300+ labs, meds, conditions). No signup steps, no OAuth. Best way to explore.</span>
+        </span>
+        {!loading && <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>}
+      </button>
+      {err && <div className="mt-2 rounded-md border border-bad/30 bg-bad-soft px-3 py-2 text-xs text-bad-ink">{err}</div>}
+
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {cards.map((c) => (
           <button key={c.t} onClick={() => go(c.to)} className="card p-4 text-left transition-colors hover:border-accent-line hover:bg-line-soft">
-            {c.tag && <span className="tag mb-2 border-accent-line text-accent">{c.tag}</span>}
             <div className="text-sm font-medium text-ink-900">{c.t}</div>
             <div className="mt-1 text-xs text-ink-500">{c.d}</div>
           </button>
         ))}
-      </div>
-      <div className="mt-4 rounded-md border border-line bg-canvas px-3.5 py-3 text-sm text-ink-500">
-        Just exploring? <button className="font-medium text-accent" onClick={() => go("integrations")}>Connect your first source →</button>
       </div>
     </div>
   );

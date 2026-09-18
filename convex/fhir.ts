@@ -383,6 +383,44 @@ export const exchangeAndConnect = action({
   },
 });
 
+// One-click demo connect: pull a data-rich sample patient (Hermiston, 314 obs)
+// straight from the SMART Health IT sandbox's OPEN FHIR endpoint — no OAuth, no
+// consent screen. So a judge (or anyone) gets a full, real-shaped record in one
+// click. Uses the exact same normalize + ingest path as a real connection.
+const SANDBOX_OPEN_BASE = "https://launch.smarthealthit.org/v/r4/fhir";
+const SANDBOX_PATIENT_ID = "ede897d1-b0d4-4401-9c8b-45ccf637cbbd";
+
+export const connectSandbox = action({
+  args: { patientId: v.id("patients") },
+  handler: async (ctx, { patientId }): Promise<{ patientName: string; counts: number }> => {
+    const get = makeGet(SANDBOX_OPEN_BASE); // open endpoint — no token
+    const data = await collectPatient(get, SANDBOX_PATIENT_ID);
+    const result = await ctx.runMutation(internal.fhir.insertFhirBundle, {
+      patientId,
+      org: "SMART Health IT Sandbox",
+      fhirBaseUrl: SANDBOX_OPEN_BASE,
+      fhirPatientId: SANDBOX_PATIENT_ID,
+      patientName: data.patientName,
+      age: data.age,
+      observations: data.observations,
+      medications: data.medications,
+      conditions: data.conditions,
+      encounters: data.encounters,
+      allergies: data.allergies,
+    });
+    await ctx.runMutation(internal.fhir.saveConnection, {
+      patientId,
+      providerId: "smart-sandbox",
+      provider: "SMART Health IT Sandbox",
+      fhirBaseUrl: SANDBOX_OPEN_BASE,
+      patientFhirId: SANDBOX_PATIENT_ID,
+      accessToken: "", // open endpoint; re-sync works without a token
+      counts: result.counts,
+    });
+    return { patientName: data.patientName, counts: result.counts };
+  },
+});
+
 export const getConnection = internalQuery({
   args: { connectionId: v.id("connections") },
   handler: async (ctx, { connectionId }) => ctx.db.get(connectionId),
