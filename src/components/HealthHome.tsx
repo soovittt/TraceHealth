@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
 import { Sparkline } from "./charts";
@@ -189,59 +189,36 @@ function Sep() {
 }
 
 function EmptyRecord({ name, go }: { name: string; go: (v: any) => void }) {
-  const { patientId } = useStore();
-  const connectSandbox = useAction(api.fhir.connectSandbox);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
   const first = name.split(" ")[0] || "there";
-
-  async function loadSample() {
-    if (!patientId) return;
-    setLoading(true);
-    setErr(null);
-    try {
-      await connectSandbox({ patientId });
-      go("home"); // record now populated — reactive queries refresh
-    } catch (e: any) {
-      setErr(e?.message ?? "Couldn't load the sample record.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const cards = [
-    { t: "Import a document", d: "Drop a PDF, photo, or FHIR/JSON file", to: "import" },
-    { t: "Connect a real provider", d: "SMART on FHIR (Epic, sandbox)", to: "integrations" },
-    { t: "Ask the AI", d: "It answers from your record", to: "ask" },
+    { t: "Add a document", d: "Drop a PDF, photo, or FHIR/JSON file", to: "import" },
+    { t: "Ask the AI", d: "It answers once your record has data", to: "ask" },
   ];
 
   return (
     <div className="mx-auto max-w-2xl animate-fade-in">
       <h1 className="text-2xl font-semibold text-ink-900">Welcome, {first}.</h1>
       <p className="mt-1 text-sm text-ink-500">
-        Your record is empty. Load a full sample record in one click, or bring your own — everything
-        normalizes into one source-traceable timeline you can explore and ask an AI about.
+        Your record is empty. Connect a provider to bring your history in — everything normalizes into one
+        source-traceable timeline you can explore and ask an AI about.
       </p>
 
-      {/* one-click, zero-friction: pull a data-rich sandbox patient, no OAuth */}
+      {/* one clear path: go connect a provider */}
       <button
-        data-tour="load-sample"
-        onClick={loadSample}
-        disabled={loading}
-        className="mt-5 flex w-full items-center gap-3 rounded-xl border border-accent-line bg-accent-soft p-4 text-left transition-colors hover:brightness-[0.99] disabled:opacity-60"
+        onClick={() => go("integrations")}
+        className="mt-5 flex w-full items-center gap-3 rounded-xl border border-accent-line bg-accent-soft p-4 text-left transition-colors hover:brightness-[0.99]"
       >
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent text-white">
-          {loading ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" /> : <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1.5l1.2 3.3 3.3 1.2-3.3 1.2L8 10.5 6.8 7.2 3.5 6l3.3-1.2z" /></svg>}
+          <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 9.5 4.8 11.2a2.4 2.4 0 0 1-3.4-3.4l1.7-1.7M9.5 6.5l1.7-1.7a2.4 2.4 0 0 1 3.4 3.4l-1.7 1.7M6 10l4-4" /></svg>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-ink-900">{loading ? "Loading a full sample record…" : "Load a sample record — one click"}</span>
-          <span className="block text-xs text-ink-600">Pulls a data-rich patient over FHIR (300+ labs, meds, conditions). No signup steps, no OAuth. Best way to explore.</span>
+          <span className="block text-sm font-semibold text-ink-900">Connect a provider</span>
+          <span className="block text-xs text-ink-600">Pull a full record over FHIR — labs, meds, conditions — in one click. The best way to start.</span>
         </span>
-        {!loading && <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>}
+        <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4" /></svg>
       </button>
-      {err && <div className="mt-2 rounded-md border border-bad/30 bg-bad-soft px-3 py-2 text-xs text-bad-ink">{err}</div>}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {cards.map((c) => (
           <button key={c.t} onClick={() => go(c.to)} className="card p-4 text-left transition-colors hover:border-accent-line hover:bg-line-soft">
             <div className="text-sm font-medium text-ink-900">{c.t}</div>
