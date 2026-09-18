@@ -48,6 +48,10 @@ type Store = {
   toggleDock: (open?: boolean) => void;
   setDockSide: (s: "left" | "right") => void;
   toggleDockExpanded: (v?: boolean) => void;
+  // First-run product tour.
+  tourOpen: boolean;
+  startTour: () => void;
+  endTour: () => void;
   // A queued prompt to auto-send when the dock opens (from an ask bar).
   pendingPrompt: string | null;
   askAI: (prompt: string) => void;
@@ -129,6 +133,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // The assistant always docks on the right (left-dock removed — it wedged the
   // panel awkwardly between the sidebar and content).
   const [dockSide, setDockSideState] = useState<"left" | "right">("right");
+  const [tourOpen, setTourOpen] = useState(false);
   const [dockExpanded, setDockExpanded] = useState<boolean>(
     () => typeof localStorage !== "undefined" && localStorage.getItem("th_dockExpanded") === "1",
   );
@@ -194,6 +199,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toggleDock: (open) => setDockOpen((prev) => (open === undefined ? !prev : open)),
     setDockSide: setDockSideState,
     toggleDockExpanded: (v) => setDockExpanded((prev) => (v === undefined ? !prev : v)),
+    tourOpen,
+    startTour: () => setTourOpen(true),
+    endTour: () => { try { localStorage.setItem("th_tour_seen", "1"); } catch { /* ignore */ } setTourOpen(false); },
     pendingPrompt,
     askAI: (prompt) => {
       setPendingPrompt(prompt);

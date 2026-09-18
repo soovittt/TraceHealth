@@ -12,7 +12,7 @@ const CADENCES: { key: "daily" | "weekly" | "monthly" | "yearly"; label: string;
 ];
 
 export default function Settings() {
-  const { patientId, go } = useStore();
+  const { patientId, go, startTour } = useStore();
   const schedules = useQuery(api.reports.listSchedules, patientId ? { patientId } : "skip");
   const setSchedule = useMutation(api.reports.setReportSchedule);
   const resetRecord = useMutation(api.patients.resetMyRecord);
@@ -68,6 +68,18 @@ export default function Settings() {
           })}
         </div>
         <p className="mt-2 text-2xs text-ink-400">Turning one on generates the first report right away, then keeps it current on the cadence you chose.</p>
+      </section>
+
+      {/* Tutorial */}
+      <section className="mt-9">
+        <h2 className="text-sm font-semibold text-ink-900">Tutorial</h2>
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface p-4">
+          <div>
+            <div className="text-sm font-medium text-ink-900">Replay the walkthrough</div>
+            <div className="mt-0.5 text-xs text-ink-500">The quick "here's where everything is" tour that runs on first visit.</div>
+          </div>
+          <button className="btn-secondary shrink-0" onClick={() => { go("home"); startTour(); }}>Replay tour</button>
+        </div>
       </section>
 
       {/* Danger zone */}

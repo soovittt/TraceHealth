@@ -9,6 +9,7 @@ import EvidencePanel from "./EvidencePanel";
 import AssistantDock from "./AssistantDock";
 import ExportMenu from "./ExportMenu";
 import ExportToast from "./ExportToast";
+import Tour from "./Tour";
 import HealthHome from "./HealthHome";
 import Timeline from "./Timeline";
 import MetricGraph from "./MetricGraph";
@@ -35,7 +36,13 @@ const NAV: { key: any; label: string; hint: string; icon: string }[] = [
 ];
 
 export default function AppShell() {
-  const { view, go, patientId, setPatientId, openMetric, dockOpen, dockSide, toggleDock } = useStore();
+  const { view, go, patientId, setPatientId, openMetric, dockOpen, dockSide, toggleDock, startTour } = useStore();
+
+  // First-run tour: auto-start once per browser when the app first loads.
+  useEffect(() => {
+    if (!patientId) return;
+    try { if (!localStorage.getItem("th_tour_seen")) { const t = setTimeout(() => startTour(), 500); return () => clearTimeout(t); } } catch { /* ignore */ }
+  }, [patientId]);
 
   // ⌘/Ctrl-J toggles the assistant dock from anywhere.
   useEffect(() => {
@@ -105,6 +112,7 @@ export default function AppShell() {
               return (
                 <button
                   key={n.key}
+                  data-tour={`nav-${n.key}`}
                   onClick={() =>
                     n.key === "ask" ? toggleDock(true) : n.key === "metric" ? openMetric("LDL") : go(n.key)
                   }
@@ -129,7 +137,7 @@ export default function AppShell() {
         </div>
 
         <div className="mt-auto space-y-2.5 border-t border-line p-2.5">
-          <button className="btn-secondary w-full justify-start gap-2" onClick={share}>
+          <button data-tour="share" className="btn-secondary w-full justify-start gap-2" onClick={share}>
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-ink-400" fill="none" stroke="currentColor" strokeWidth="1.3">
               <path d="M11 5.5 6 8m5 2.5L6 8m0 0a2 2 0 1 0-2 0m8-4.5a1.5 1.5 0 1 0 0 .01M12 12.5a1.5 1.5 0 1 0 0 .01" />
             </svg>
@@ -239,6 +247,7 @@ export default function AppShell() {
 
       <EvidencePanel />
       <ExportToast />
+      <Tour />
 
       {shareLink && (
         <ShareModal link={shareLink} onClose={() => setShareLink(null)} onOpen={() => window.open("/doctor", "_blank", "noopener")} />

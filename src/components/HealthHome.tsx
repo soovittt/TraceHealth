@@ -225,6 +225,7 @@ function EmptyRecord({ name, go }: { name: string; go: (v: any) => void }) {
 
       {/* one-click, zero-friction: pull a data-rich sandbox patient, no OAuth */}
       <button
+        data-tour="load-sample"
         onClick={loadSample}
         disabled={loading}
         className="mt-5 flex w-full items-center gap-3 rounded-xl border border-accent-line bg-accent-soft p-4 text-left transition-colors hover:brightness-[0.99] disabled:opacity-60"
