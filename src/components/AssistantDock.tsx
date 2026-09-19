@@ -1,17 +1,73 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../lib/store";
 import AssistantChat from "./AssistantChat";
 
-// A dockable, collapsible AI panel that lives alongside the main content on
-// every in-app page. Persists open/side across navigation and reloads.
+// The AI panel docks on the right. Drag its LEFT edge to make it wider/narrower;
+// the chosen width persists across navigation and reloads.
+const MIN_W = 340;
+const MAX_FRAC = 0.6;
+
 export default function AssistantDock() {
-  const { dockOpen, dockSide, dockExpanded, toggleDock, setDockSide, toggleDockExpanded } = useStore();
+  const { dockOpen, toggleDock } = useStore();
+  const [width, setWidth] = useState<number>(() => {
+    const s = Number(localStorage.getItem("th_dockWidth"));
+    return s && s >= MIN_W ? s : 400;
+  });
+  const resizing = useRef(false);
+
+  const clampW = useCallback(
+    (w: number) => Math.min(Math.max(MIN_W, w), Math.round(window.innerWidth * MAX_FRAC)),
+    [],
+  );
+
+  useEffect(() => {
+    try { localStorage.setItem("th_dockWidth", String(width)); } catch { /* ignore */ }
+  }, [width]);
+
+  useEffect(() => {
+    const onResize = () => setWidth((w) => clampW(w));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [clampW]);
+
+  // Drag-to-resize from the left edge (width = distance from pointer to the viewport's right edge).
+  useEffect(() => {
+    function move(e: PointerEvent) {
+      if (!resizing.current) return;
+      setWidth(clampW(window.innerWidth - e.clientX));
+    }
+    function up() {
+      if (!resizing.current) return;
+      resizing.current = false;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [clampW]);
+
   if (!dockOpen) return null;
 
-  const borderSide = dockSide === "right" ? "border-l" : "border-r";
-  const width = dockExpanded ? "w-[680px] max-w-[52vw]" : "w-[380px]";
-
   return (
-    <aside className={`flex h-full shrink-0 flex-col ${width} ${borderSide} border-line bg-surface transition-[width] duration-200`}>
+    <aside className="relative flex h-full shrink-0 flex-col border-l border-line bg-surface" style={{ width }}>
+      {/* left-edge resize handle */}
+      <div
+        onPointerDown={(e) => {
+          resizing.current = true;
+          document.body.style.userSelect = "none";
+          document.body.style.cursor = "ew-resize";
+          e.preventDefault();
+        }}
+        title="Drag to resize"
+        className="group absolute left-0 top-0 z-10 h-full w-2 -translate-x-1/2 cursor-ew-resize"
+      >
+        <div className="mx-auto h-full w-0.5 bg-transparent transition-colors group-hover:bg-accent" />
+      </div>
+
       <header className="flex items-center justify-between border-b border-line px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="grid h-5 w-5 place-items-center rounded bg-brand text-brand-fg">
@@ -30,21 +86,6 @@ export default function AssistantDock() {
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 3H3.5v9.5h9.5V10M9.5 3H13v3.5M13 3l-5.5 5.5" />
             </svg>
-          </button>
-          <button
-            onClick={() => toggleDockExpanded()}
-            title={dockExpanded ? "Collapse" : "Expand"}
-            className="grid h-6 w-6 place-items-center rounded text-ink-400 hover:bg-line-soft hover:text-ink-700"
-          >
-            {dockExpanded ? (
-              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10 6h3M13 6V3M6 10H3M3 10v3M10 6l3-3M6 10l-3 3" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 3h4v4M13 3l-4 4M7 13H3V9M3 13l4-4" />
-              </svg>
-            )}
           </button>
           <button
             onClick={() => toggleDock(false)}

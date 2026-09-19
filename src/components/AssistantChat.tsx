@@ -361,8 +361,8 @@ export default function AssistantChat({ compact = false }: { compact?: boolean }
               }
             }}
             rows={1}
-            placeholder={attachments.length ? "Ask about these files…" : "Ask about your health…  (paste or drop a lab photo/PDF)"}
-            className="input max-h-28 flex-1 resize-none py-2 text-sm"
+            placeholder={attachments.length ? "Ask about these files…" : "Ask about your health…"}
+            className="input max-h-28 min-h-[36px] flex-1 resize-none py-2 text-sm leading-5"
           />
           <button className="btn-primary px-3 py-2" onClick={() => send()} disabled={busy || uploading || (!input.trim() && !attachments.length)}>
             {busy ? "…" : "Send"}

@@ -8,8 +8,8 @@ import "./index.css";
 
 const url = import.meta.env.VITE_CONVEX_URL as string | undefined;
 
-// Apply saved theme before first paint (default: light).
-if (localStorage.getItem("th_theme") === "dark") {
+// Apply saved theme before first paint (default: dark unless the user picked light).
+if (localStorage.getItem("th_theme") !== "light") {
   document.documentElement.classList.add("dark");
 }
 
