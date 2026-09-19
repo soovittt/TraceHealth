@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { loadPending, clearPending } from "../lib/smart";
+import type { View } from "../lib/store";
 import { Wordmark } from "./brand";
 
 // Completes the SMART OAuth redirect: verifies state, exchanges the code
-// (server-side, PKCE), and imports the record — then lands on /connections.
-export default function OAuthCallback() {
+// (server-side, PKCE), and imports the record — then hands control back to the
+// Router via onDone() so it can transition client-side (no reload, session kept).
+export default function OAuthCallback({ onDone }: { onDone: (target: View) => void }) {
   const ensure = useMutation(api.patients.ensureMyPatient);
   const exchange = useAction(api.fhir.exchangeAndConnect);
   const [status, setStatus] = useState<"working" | "error">("working");
@@ -53,7 +55,8 @@ export default function OAuthCallback() {
         });
         clearPending();
         setMessage(`Connected ${pending.provider} — imported ${r.counts} records.`);
-        setTimeout(() => window.location.assign("/integrations"), 700);
+        // Land on the dashboard so the freshly synced record is right there.
+        setTimeout(() => onDone("home"), 800);
       } catch (e: any) {
         fail(e?.message ?? "Could not complete the connection.");
       }
@@ -81,7 +84,7 @@ export default function OAuthCallback() {
         ) : (
           <>
             <p className="text-sm text-bad-ink">{message}</p>
-            <button className="btn-secondary mt-4 w-full" onClick={() => window.location.assign("/integrations")}>
+            <button className="btn-secondary mt-4 w-full" onClick={() => onDone("integrations")}>
               Back to Connections
             </button>
           </>

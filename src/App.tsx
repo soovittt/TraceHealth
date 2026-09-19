@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useConvexAuth, useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { StoreProvider, useStore } from "./lib/store";
@@ -28,11 +28,25 @@ function useResolveMyPatient() {
 }
 
 function Router() {
-  const { view, shareToken } = useStore();
+  const { view, shareToken, go } = useStore();
   useResolveMyPatient();
 
-  // OAuth redirect target — handles the SMART callback then routes onward.
-  if (window.location.pathname === "/callback") return <OAuthCallback />;
+  // OAuth redirect target — handle the SMART callback, then transition
+  // client-side (NO full reload) so the just-established session is preserved
+  // and the user lands straight on their populated record.
+  const [inCallback, setInCallback] = useState(
+    () => typeof window !== "undefined" && window.location.pathname === "/callback",
+  );
+  if (inCallback) {
+    return (
+      <OAuthCallback
+        onDone={(target) => {
+          setInCallback(false);
+          go(target); // updates the URL via the store's router; clears ?code=…
+        }}
+      />
+    );
+  }
 
   // Public doctor-share link stands alone (no app chrome).
   if (shareToken) return <DoctorView />;
