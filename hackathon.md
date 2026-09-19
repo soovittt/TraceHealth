@@ -3,18 +3,98 @@
 - **Project:** TraceHealth
 - **Event:** Convex All Gas Hackathon
 - **What it does:** Turns years of scattered medical records from multiple providers into one interactive, evidence-backed longitudinal health history.
-- **Live app:** not deployed
-- **Repo:** private
+- **Live app:** https://ideal-swan-48.convex.site
+- **Repo:** https://github.com/soovittt/TraceHealth
 - **Frontend:** Convex static hosting
-- **Convex deployment:** not deployed
-- **Components:** none
-- **Convex features:** schema, tables, indexes, queries, mutations, actions, internal functions, scheduled functions, file storage, realtime queries
-- **Auth:** none
-- **AI models:** gpt-4o-mini (OpenAI, record extraction)
+- **Convex deployment:** https://ideal-swan-48.convex.cloud
+- **Components:** @convex-dev/static-hosting
+- **Convex features:** schema, tables, indexes, full-text search, queries, mutations, actions, internal functions, HTTP actions, crons, scheduled functions, file storage, realtime queries, paginated queries, registered components
+- **Auth:** Convex Auth (Password + Anonymous)
+- **AI models:** gpt-4o (OpenAI — vision document extraction, assistant tool-loop), gpt-4o-mini (summaries/reports)
 - **Started:** 2026-08-28T05:09:47Z
-- **Last updated:** 2026-08-28T17:00:00Z
+- **Last updated:** 2026-09-19T20:45:00Z
 
 ## Log
+
+### 2026-09-19 - cd97fa2
+Shipped to production on **Convex static hosting**: registered the
+`@convex-dev/static-hosting` component and served the built SPA at
+https://ideal-swan-48.convex.site alongside the auth routes
+(`convex/convex.config.ts`, `convex/http.ts`). Fixed SMART OAuth to finish
+client-side (no full reload) so the session is preserved and the user lands on
+the synced record (`src/App.tsx`, `src/components/OAuthCallback.tsx`). Added
+configurable summary reports — pick sections and embed live trend graphs that
+export to PDF — generated as a **background Convex job** that posts a
+notification when done, surfaced by a new top-bar bell and a bottom-right
+progress toast (new `notifications` table + reactive `list`/`unreadCount`
+queries and `markRead` mutations). Dark theme by default, drag-to-resize AI
+dock, cleaner chat composer. Convex features: registered components, crons,
+scheduled functions, HTTP actions, full-text search, file storage, realtime
+queries (`convex/schema.ts`, `convex/notifications.ts`, `convex/reports.ts`,
+`src/components/SummaryDialog.tsx`, `src/components/NotificationBell.tsx`).
+
+### 2026-09-17 - d0a29b5
+Onboarding built for judge testing: a guest/anonymous "Try it — no signup"
+entry and a first-run product tour that walks the real screens (spotlight
+coachmarks with Back/Next/Skip, replayable from Settings), ending on a single
+clean path to add data by connecting a provider. Sandbox connect uses the real
+SMART on FHIR OAuth flow (log in + authorize + sync). Auth: added the Anonymous
+provider (`convex/auth.ts`, `src/components/Tour.tsx`, `src/components/Landing.tsx`).
+
+### 2026-09-16 - 82b6c3f
+Live drug prices via **Firecrawl** v2 scrape — the assistant's `drug_price` tool
+pulls real GoodRx + Cost Plus Drugs prices in parallel, cited; web-backed
+answers carry a floor of 5 distinct-domain sources with favicons
+(`convex/firecrawl.ts`, `convex/assistant.ts`). Chat file analysis: attach an
+image/PDF → GPT-4o vision reads it, ingests the records into the data layer, then
+explains them (robust multi-file, paste, drag-and-drop). Added reference ranges
+for thyroid/iron/vitamin/liver/CBC labs so out-of-range values flag correctly.
+Added an AI-answer eval harness (deterministic checks + LLM judge over a fixture
+patient) (`convex/ingest.ts`, `convex/metrics.ts`, `convex/evals.ts`).
+
+### 2026-09-12 - caddc49
+Proper export dialog — pick format + record types, live preview, formatted
+document (`src/components/ExportDialog.tsx`). Hardened the clinician share: AI
+shows only on the real shared link, and the owner preview opens in a new tab.
+Admin record reset (Settings danger zone + `wipeByEmail`) and "Explain with AI"
+on the Review page. Added integration/platform PRDs under `docs/prd`.
+
+### 2026-09-11 - 876aff8
+Redesigned Add-data into one smart, auto-routing dropzone with Upload/History
+tabs and a source audit trail. Added **scheduled reports**
+(daily/weekly/monthly/yearly) via a Convex **cron**, with a dedicated Settings
+page. Reports render as a formatted clinical document with real styled tables.
+Convex features: crons, scheduled functions (`convex/reports.ts`,
+`convex/crons.ts`, `src/components/ImportScreen.tsx`, `src/components/Settings.tsx`).
+
+### 2026-09-10 - 33807a6
+Native PDF/image ingestion — GPT-4o vision reads scanned/text medical PDFs into
+structured, source-traced records, and the uploader auto-routes PDF/image/C-CDA.
+Made ingestion a reactive **background pipeline** with dedup, preview, and live
+status (`ctx.scheduler`). Deeper Compare page with out-of-range flags and
+"Explain this period with AI" (`convex/ingest.ts`, `src/components/Compare.tsx`).
+
+### 2026-09-08 - 0bf39cd
+Visit-centric record: FHIR encounter-reference linking (with a same-day
+fallback) so each visit shows the labs/meds/diagnoses recorded that day, plus
+"Explain this visit with AI". Deduped medications (FHIR emits one
+MedicationRequest per refill) at ingest and across snapshot/overview/AI context.
+Evidence panel now shows the specific record (`convex/fhir.ts`, `convex/health.ts`).
+
+### 2026-09-07 - 788d083
+Background data export as a Convex job — scheduler + action + file storage with
+reactive, no-poll status, surfaced by a global bottom-right toast; the export
+bundles summary, conflicts, missing records, and provenance. New TraceHealth
+logo/mark + favicon. Convex features: scheduled functions, actions, file storage
+(`convex/export.ts`, `src/components/ExportToast.tsx`).
+
+### 2026-09-06 - 4064310
+AI assistant + web grounding landed (merged feature branches): a tool-calling
+assistant over the record, Firecrawl-backed medical reference lookup, a clinician
+chat, an AI signals/insights view, and structured export/import. Search upgraded
+to Convex **full-text search** indexes with a typo-tolerant fuzzy + substring
+fallback. Notion-inspired light/dark UI. Convex features: full-text search,
+actions (`convex/assistant.ts`, `convex/firecrawl.ts`, `convex/health.ts`).
 
 ### 2026-08-29 - working tree
 Renamed the product to TraceHealth across UI, backend copy, titles, and package
