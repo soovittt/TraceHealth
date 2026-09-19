@@ -1,0 +1,36 @@
+<svg width="1200" height="300" viewBox="0 0 1200 300" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TraceHealth — one longitudinal, evidence-cited health record">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B0F17"/>
+      <stop offset="1" stop-color="#0E1420"/>
+    </linearGradient>
+  </defs>
+
+  <!-- backdrop -->
+  <rect width="1200" height="300" rx="24" fill="url(#bg)"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="298.5" rx="23.25" stroke="#FFFFFF" stroke-opacity="0.08"/>
+
+  <!-- faint background pulse-trace spanning the banner -->
+  <path d="M60 232 H300 l26 -46 34 92 26 -128 30 150 24 -68 H1000 l30 -30 H1140"
+        stroke="#2383E2" stroke-opacity="0.14" stroke-width="2" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- logo mark -->
+  <g transform="translate(72,90)">
+    <rect width="120" height="120" rx="28" fill="#0B0F17"/>
+    <rect x="0.5" y="0.5" width="119" height="119" rx="27.5" stroke="#FFFFFF" stroke-opacity="0.10"/>
+    <g transform="translate(24,24) scale(4.5)">
+      <path d="M2 9h2.6l1.1-3.8 1.5 7.2 1.3-4.6h1.7l2-2.4"
+            stroke="#FFFFFF" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="12.2" cy="5.4" r="1.7" fill="#2383E2"/>
+    </g>
+  </g>
+
+  <!-- wordmark + tagline -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+    <text x="232" y="140" font-size="66" font-weight="700" letter-spacing="-1.5" fill="#FFFFFF">TraceHealth</text>
+    <text x="235" y="188" font-size="25" font-weight="400" fill="#9AA4B2">One longitudinal, evidence-cited health record —</text>
+    <text x="235" y="221" font-size="25" font-weight="400" fill="#9AA4B2">from the records every provider keeps to itself.</text>
+    <text x="235" y="262" font-size="16" font-weight="500" letter-spacing="0.3" fill="#5B6472">Built on Convex&#160;&#160;·&#160;&#160;OpenAI&#160;&#160;·&#160;&#160;Firecrawl</text>
+  </g>
+</svg>
