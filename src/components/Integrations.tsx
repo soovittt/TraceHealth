@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
@@ -35,11 +35,9 @@ export default function Integrations() {
   const docs = useQuery(api.health.listDocuments, patientId ? { patientId } : "skip");
   const syncConn = useAction(api.fhir.syncConnection);
   const connectOpen = useAction(api.fhir.connectOpenServer);
-  const importBundle = useMutation(api.ingest.importBundle);
   const removeConn = useMutation(api.connections.removeConnection);
   const disconnectSource = useMutation(api.mutations.disconnectSource);
   const searchProviders = useAction(api.directory.searchProviders);
-  const appleRef = useRef<HTMLInputElement>(null);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -101,36 +99,6 @@ export default function Integrations() {
     }
   }
 
-  // Apple Health: no web API — import the "Export All Health Data" export.zip and
-  // pull its clinical-records/*.json (genuine FHIR R4) into the record.
-  async function onAppleZip(files: FileList | null) {
-    const f = files?.[0];
-    if (!f || !patientId) return;
-    setBusy("apple");
-    setMsg(null);
-    try {
-      const JSZip = (await import("jszip")).default;
-      const zip = await JSZip.loadAsync(f);
-      const entries: any[] = [];
-      const jsons = Object.values(zip.files).filter((zf: any) => !zf.dir && /clinical-records\/.*\.json$/i.test(zf.name));
-      if (!jsons.length) throw new Error("No clinical records in this export. On iPhone: Health → your photo → Export All Health Data. (Clinical records exist only if you've linked a US provider in Health.)");
-      for (const zf of jsons) {
-        try {
-          const r = JSON.parse(await (zf as any).async("string"));
-          if (r?.resourceType === "Bundle" && Array.isArray(r.entry)) entries.push(...r.entry);
-          else if (r?.resourceType) entries.push({ resource: r });
-        } catch { /* skip a bad file */ }
-      }
-      const c: any = await importBundle({ patientId, filename: "apple-health-export.json", text: JSON.stringify({ resourceType: "Bundle", entry: entries }) });
-      const n = (c.observations ?? 0) + (c.medications ?? 0) + (c.conditions ?? 0) + (c.encounters ?? 0) + (c.allergies ?? 0);
-      setMsg(`Imported Apple Health — ${n} records from ${jsons.length} documents.`);
-    } catch (e: any) {
-      setMsg(e?.message ?? "Could not read the Apple Health export.");
-    } finally {
-      setBusy(null);
-      if (appleRef.current) appleRef.current.value = "";
-    }
-  }
   async function sync(id: any, name: string) {
     setBusy(`s:${id}`);
     setMsg(null);
@@ -324,32 +292,14 @@ export default function Integrations() {
 
       {/* upload path */}
       <div className="eyebrow mt-7 mb-2">Other ways to add records</div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="card flex items-center justify-between p-4">
-          <div>
-            <div className="text-sm font-medium text-ink-900">Upload or paste a document</div>
-            <div className="text-xs text-ink-500">PDF, CSV, JSON, FHIR bundle — extracted with AI.</div>
-          </div>
-          <button className="btn-secondary text-xs" onClick={() => go("import")}>
-            Open
-          </button>
+      <div className="card flex items-center justify-between p-4">
+        <div>
+          <div className="text-sm font-medium text-ink-900">Upload or paste a document</div>
+          <div className="text-xs text-ink-500">PDF, CSV, JSON, FHIR bundle — extracted with AI.</div>
         </div>
-        <div className="card flex items-center justify-between gap-3 p-4">
-          <div className="flex items-start gap-3">
-            <ProviderLogo domain="apple.com" label="Apple Health" />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-ink-900">Apple Health</span>
-                <span className="tag">Import file</span>
-              </div>
-              <div className="mt-0.5 text-xs text-ink-500">Import your <span className="mono">export.zip</span> — we read its clinical records (FHIR).</div>
-            </div>
-          </div>
-          <input ref={appleRef} type="file" accept=".zip,application/zip" className="hidden" onChange={(e) => onAppleZip(e.target.files)} />
-          <button className="btn-secondary shrink-0 text-xs" onClick={() => appleRef.current?.click()} disabled={busy === "apple"}>
-            {busy === "apple" ? "Reading…" : "Import"}
-          </button>
-        </div>
+        <button className="btn-secondary text-xs" onClick={() => go("import")}>
+          Open
+        </button>
       </div>
 
       <p className="mt-6 text-2xs text-ink-400">
