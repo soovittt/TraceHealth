@@ -8,12 +8,13 @@
     "dev:all": "concurrently -n convex,web -c blue,green \"convex dev\" \"vite\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && convex deploy && npx @convex-dev/static-hosting deploy dist",
+    "deploy": "npx @convex-dev/static-hosting deploy",
     "eval": "node scripts/evals.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.37.0",
     "@convex-dev/auth": "^0.0.95",
+    "@convex-dev/static-hosting": "^0.2.1",
     "convex": "^1.17.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

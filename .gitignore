@@ -8,3 +8,4 @@ dist
 .reducer
 .claude
 convex/_generated
+tsconfig.tsbuildinfo
