@@ -76,7 +76,8 @@ export const PROVIDERS: Provider[] = [
     blurb: "U.S. Dept. of Veterans Affairs FHIR sandbox with synthetic Veteran records. Needs a free VA developer client id.",
     fhirBaseUrl: "https://sandbox-api.va.gov/services/fhir/v0/r4",
     clientId: import.meta.env.VITE_VA_CLIENT_ID as string | undefined,
-    scopes: "launch/patient patient/*.read openid fhirUser offline_access",
+    // VA Lighthouse requires explicit per-resource scopes (no patient/*.read wildcard).
+    scopes: "launch/patient patient/Patient.read patient/Observation.read patient/Condition.read patient/MedicationRequest.read patient/AllergyIntolerance.read patient/Encounter.read openid fhirUser offline_access",
     testable: false,
     sandbox: true,
     domain: "va.gov",

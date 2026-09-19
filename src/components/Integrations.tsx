@@ -213,7 +213,7 @@ export default function Integrations() {
       </div>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         {PROVIDERS.map((p) => {
-          const connectable = p.open || (p.testable && !!p.clientId);
+          const connectable = p.open || !!p.clientId;
           const isConnected = (connections ?? []).some((c: any) => c.providerId === p.id);
           return (
             <div key={p.id} className="card flex items-start justify-between gap-3 p-4">
