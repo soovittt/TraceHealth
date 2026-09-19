@@ -81,6 +81,29 @@ export const wipeByEmail = internalMutation({
   },
 });
 
+// Admin: clear the record data for every guest (anonymous, email-less) account,
+// so the SMART-sandbox connect flow can be demoed from a clean slate. Keeps the
+// patient + account rows intact (so existing guest sessions stay valid — their
+// home just goes empty until they reconnect). Run from the CLI:
+//   npx convex run patients:wipeGuests '{}' --prod
+export const wipeGuests = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const guestIds = new Set(users.filter((u: any) => !u.email).map((u) => u._id));
+    const patients = await ctx.db.query("patients").collect();
+    let guests = 0;
+    let cleared = 0;
+    for (const p of patients) {
+      if (p.userId && guestIds.has(p.userId) && !p.isDemo) {
+        cleared += await clearPatient(ctx, p._id);
+        guests++;
+      }
+    }
+    return { guests, cleared };
+  },
+});
+
 // Create the user's record on first entry (idempotent). Returns its id.
 export const ensureMyPatient = mutation({
   args: {},
