@@ -62,6 +62,12 @@ type Store = {
   // A running background export job (drives the global toast).
   exportJob: { id: Id<"exports">; format: string } | null;
   setExportJob: (j: { id: Id<"exports">; format: string } | null) => void;
+  // A report to auto-open when the Reports page mounts (from a notification click).
+  focusReportId: string | null;
+  setFocusReport: (id: string | null) => void;
+  // A running summary generation (drives the bottom-right progress toast).
+  summaryJob: { startedAt: number } | null;
+  setSummaryJob: (j: { startedAt: number } | null) => void;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -140,6 +146,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<Id<"conversations"> | null>(null);
   const [exportJob, setExportJob] = useState<{ id: Id<"exports">; format: string } | null>(null);
+  const [focusReportId, setFocusReport] = useState<string | null>(null);
+  const [summaryJob, setSummaryJob] = useState<{ startedAt: number } | null>(null);
 
   useEffect(() => {
     localStorage.setItem("th_dockOpen", dockOpen ? "1" : "0");
@@ -216,6 +224,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setConversation: setConversationId,
     exportJob,
     setExportJob,
+    focusReportId,
+    setFocusReport,
+    summaryJob,
+    setSummaryJob,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -335,4 +335,18 @@ export default defineSchema({
   })
     .index("by_patient", ["patientId"])
     .index("by_conversation", ["conversationId"]),
+
+  // In-app notifications — powers the top-bar bell. Written by background jobs
+  // (e.g. a finished summary) and read reactively, so the badge updates live.
+  notifications: defineTable({
+    patientId: v.id("patients"),
+    userId: v.optional(v.id("users")),
+    kind: v.string(), // "report_ready" | ...
+    title: v.string(),
+    body: v.optional(v.string()),
+    read: v.boolean(),
+    refType: v.optional(v.string()), // "report"
+    refId: v.optional(v.string()), // e.g. a reports _id
+    createdAt: v.number(),
+  }).index("by_patient", ["patientId"]),
 });
