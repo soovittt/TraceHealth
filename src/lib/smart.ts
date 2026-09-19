@@ -33,14 +33,39 @@ export const PROVIDERS: Provider[] = [
     domain: "smarthealthit.org",
   },
   {
+    id: "smart-sandbox-pick",
+    name: "SMART Health IT — pick a patient",
+    blurb: "Same official test server, but choose any synthetic patient at login — connect a few to compare records.",
+    // Unpinned base: standalone launch shows the sandbox patient picker; the
+    // selected patient comes back in the token response (`patient`).
+    fhirBaseUrl: "https://launch.smarthealthit.org/v/r4/fhir",
+    clientId: "tracehealth-app",
+    scopes: "launch/patient patient/*.read openid fhirUser offline_access",
+    testable: true,
+    sandbox: true,
+    domain: "smarthealthit.org",
+  },
+  {
     id: "epic",
     name: "Epic MyChart",
-    blurb: "Connect your hospital account via Epic's patient API.",
+    blurb: "Real hospitals on Epic. The SMART flow is wired — connecting needs a free Epic developer client id.",
     fhirBaseUrl: "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
     clientId: import.meta.env.VITE_EPIC_CLIENT_ID as string | undefined,
     scopes: "launch/patient patient/*.read openid fhirUser offline_access",
     testable: false,
     domain: "epic.com",
+  },
+  {
+    id: "cerner",
+    name: "Oracle Health (Cerner)",
+    blurb: "Oracle Health / Cerner sandbox. The SMART flow is wired — connecting needs a free Cerner developer client id.",
+    // Cerner's public R4 sandbox tenant; SMART discovery lives at its .well-known.
+    fhirBaseUrl: "https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d",
+    clientId: import.meta.env.VITE_CERNER_CLIENT_ID as string | undefined,
+    scopes: "launch/patient patient/*.read openid fhirUser offline_access",
+    testable: false,
+    sandbox: true,
+    domain: "oracle.com",
   },
 ];
 
