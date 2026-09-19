@@ -6,9 +6,11 @@ import { useStore } from "../lib/store";
 import { Mark } from "./brand";
 import SearchBar from "./SearchBar";
 import EvidencePanel from "./EvidencePanel";
+import NotificationBell from "./NotificationBell";
 import AssistantDock from "./AssistantDock";
 import ExportMenu from "./ExportMenu";
 import ExportToast from "./ExportToast";
+import SummaryToast from "./SummaryToast";
 import Tour from "./Tour";
 import HealthHome from "./HealthHome";
 import Timeline from "./Timeline";
@@ -58,7 +60,7 @@ export default function AppShell() {
   const patient = useQuery(api.health.getPatient, patientId ? { patientId } : "skip");
   const conflicts = useQuery(api.health.listConflicts, patientId ? { patientId } : "skip");
   const me = useQuery(api.patients.getMe, {});
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { signOut } = useAuthActions();
   const createShare = useMutation(api.mutations.createShare);
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -188,6 +190,7 @@ export default function AppShell() {
           <SearchBar />
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <ThemeToggle />
+            <NotificationBell />
             <button
               className={`btn-ghost gap-1.5 ${dockOpen ? "bg-line-soft text-ink-900" : ""}`}
               onClick={() => toggleDock()}
@@ -208,7 +211,7 @@ export default function AppShell() {
 
         <main className="flex-1 overflow-y-auto px-6 py-6">
           {!patientId ? (
-            isAuthenticated ? (
+            authLoading || isAuthenticated ? (
               <div className="mx-auto max-w-md pt-24 text-center text-sm text-ink-400">
                 Setting up your record…
               </div>
@@ -247,6 +250,7 @@ export default function AppShell() {
 
       <EvidencePanel />
       <ExportToast />
+      <SummaryToast />
       <Tour />
 
       {shareLink && (

@@ -57,7 +57,7 @@ export default function ExportToast() {
           </div>
           <div className="mt-0.5 text-2xs text-ink-500">
             {st === "pending"
-              ? "Running as a background job on Convex…"
+              ? "This usually takes a few seconds…"
               : st === "ready"
                 ? `${status?.records ?? 0} records · downloaded to your device`
                 : status?.error ?? "Please try again."}

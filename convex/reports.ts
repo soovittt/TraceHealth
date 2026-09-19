@@ -109,11 +109,25 @@ function summaryContextFrom(s: any) {
   };
 }
 
-// Shared: call the model to write the markdown summary.
-async function summaryMarkdown(apiKey: string, model: string, context: any): Promise<string> {
+// Which prose sections the summary can contain, in document order.
+const SECTION_LABELS: Record<string, string> = {
+  overview: "Patient overview",
+  problems: "Active problems",
+  medications: "Current medications",
+  allergies: "Allergies",
+  trends: "Key trends (with values, dates, and reference status)",
+  summary: "Summary",
+};
+const SECTION_ORDER = ["overview", "problems", "medications", "allergies", "trends", "summary"];
+
+// Shared: call the model to write the markdown summary, limited to `sections`.
+async function summaryMarkdown(apiKey: string, model: string, context: any, sections?: string[]): Promise<string> {
+  const chosen = (sections && sections.length ? sections : SECTION_ORDER).filter((k) => SECTION_LABELS[k]);
+  const ordered = SECTION_ORDER.filter((k) => chosen.includes(k));
+  const sectionList = (ordered.length ? ordered : SECTION_ORDER).map((k) => SECTION_LABELS[k]).join("; ");
   const system =
     "You are a clinical documentation assistant. Write a concise, well-structured HEALTH SUMMARY REPORT in Markdown from the provided records. " +
-    "Sections: Patient overview; Active problems; Current medications; Allergies; Key trends (with values, dates, and reference status); Summary. " +
+    `Include ONLY these sections, in this order: ${sectionList}. ` +
     "Use only the data provided. Describe findings and trends; do NOT diagnose or recommend treatment. Keep it factual and readable. Return ONLY the Markdown, no preamble.";
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -133,22 +147,65 @@ async function summaryMarkdown(apiKey: string, model: string, context: any): Pro
 }
 
 // AI-generated clinical summary report from the patient's record (manual, authed).
-export const generateSummaryReport = action({
-  args: { patientId: v.id("patients") },
-  handler: async (ctx, { patientId }): Promise<{ reportId: Id<"reports"> }> => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not set.");
-    const s: any = await ctx.runQuery(internal.assistant.aiSnapshot, { patientId });
-    const content = await summaryMarkdown(apiKey, model, summaryContextFrom(s));
-    const name = s.patient?.name ?? "Patient";
-    const reportId: Id<"reports"> = await ctx.runMutation(internal.reports.saveReport, {
-      patientId,
-      title: `Health summary — ${name}`,
-      content,
-      kind: "summary",
-    });
-    return { reportId };
+// Kick off summary generation in the BACKGROUND and return immediately, so the
+// UI isn't blocked. The scheduled job writes the report + a notification when it
+// finishes — both observed reactively (bell badge updates live).
+export const requestSummaryReport = mutation({
+  args: {
+    patientId: v.id("patients"),
+    sections: v.optional(v.array(v.string())),
+    charts: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { patientId, sections, charts }) => {
+    await assertWrite(ctx, patientId);
+    await ctx.scheduler.runAfter(0, internal.reports.runSummaryJob, { patientId, sections, charts });
+    return { ok: true };
+  },
+});
+
+// The background worker: generate the markdown, embed the chosen charts, save the
+// report, then drop a notification for the bell. On failure, notify too.
+export const runSummaryJob = internalAction({
+  args: {
+    patientId: v.id("patients"),
+    sections: v.optional(v.array(v.string())),
+    charts: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { patientId, sections, charts }) => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+      if (!apiKey) throw new Error("OPENAI_API_KEY is not set.");
+      const s: any = await ctx.runQuery(internal.assistant.aiSnapshot, { patientId });
+      let content = await summaryMarkdown(apiKey, model, summaryContextFrom(s), sections);
+      // Embed the chosen trend charts as directive tokens the viewer/print render
+      // as real graphs from the live record.
+      if (charts && charts.length) {
+        content += `\n\n## Trend charts\n\n` + charts.map((c) => `[[chart:${c}]]`).join("\n\n") + "\n";
+      }
+      const name = s.patient?.name ?? "Patient";
+      const reportId = await ctx.runMutation(internal.reports.insertReportTrusted, {
+        patientId,
+        title: `Health summary — ${name}`,
+        content,
+        kind: "summary",
+      });
+      await ctx.runMutation(internal.notifications.createTrusted, {
+        patientId,
+        kind: "report_ready",
+        title: "Health summary ready",
+        body: "Your summary finished generating — tap to open it.",
+        refType: "report",
+        refId: reportId,
+      });
+    } catch (e: any) {
+      await ctx.runMutation(internal.notifications.createTrusted, {
+        patientId,
+        kind: "report_failed",
+        title: "Summary couldn't be generated",
+        body: String(e?.message ?? "Something went wrong. Please try again."),
+      });
+    }
   },
 });
 

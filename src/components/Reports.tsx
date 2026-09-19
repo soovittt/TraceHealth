@@ -1,36 +1,44 @@
-import { useState, Fragment, type ReactNode } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useEffect, useRef, useState, Fragment, type ReactNode } from "react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useStore } from "../lib/store";
-import { fmtDate } from "../lib/format";
+import { fmtDate, fmtNum } from "../lib/format";
+import { TrendChart } from "./charts";
+import SummaryDialog from "./SummaryDialog";
 
 export default function Reports() {
-  const { patientId, go } = useStore();
+  const { patientId, go, focusReportId, setFocusReport, setSummaryJob } = useStore();
   const reports = useQuery(api.reports.listReports, patientId ? { patientId } : "skip");
-  const generate = useAction(api.reports.generateSummaryReport);
   const remove = useMutation(api.reports.removeReport);
 
-  const [busy, setBusy] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const docRef = useRef<HTMLDivElement>(null);
+
+  // Opened from a notification: focus that report once it's in the list.
+  useEffect(() => {
+    if (!focusReportId) return;
+    if ((reports ?? []).some((r: any) => r._id === focusReportId)) {
+      setOpenId(focusReportId);
+      setFocusReport(null);
+    }
+  }, [focusReportId, reports, setFocusReport]);
 
   const open = (reports ?? []).find((r: any) => r._id === openId) ?? (reports ?? [])[0] ?? null;
 
-  async function gen() {
-    if (!patientId) return;
-    setBusy("gen");
-    setMsg(null);
-    try {
-      const r = await generate({ patientId });
-      setOpenId(r.reportId);
-    } catch (e: any) {
-      setMsg(e?.message ?? "Could not generate.");
-    } finally {
-      setBusy(null);
-    }
-  }
   return (
     <div className="animate-fade-in">
+      {showConfig && patientId && (
+        <SummaryDialog
+          patientId={patientId}
+          onClose={() => setShowConfig(false)}
+          onRequested={() => {
+            setShowConfig(false);
+            setSummaryJob({ startedAt: Date.now() });
+          }}
+        />
+      )}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900">Reports</h1>
@@ -39,8 +47,8 @@ export default function Reports() {
             <button className="font-medium text-accent" onClick={() => go("settings")}>Settings</button>.
           </p>
         </div>
-        <button className="btn-primary shrink-0" onClick={gen} disabled={busy === "gen"}>
-          {busy === "gen" ? "Generating…" : "Generate summary"}
+        <button className="btn-primary shrink-0" onClick={() => setShowConfig(true)}>
+          Generate summary
         </button>
       </div>
 
@@ -102,12 +110,12 @@ export default function Reports() {
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <IconBtn title="Copy" onClick={() => navigator.clipboard?.writeText(open.content)}><CopyIcon /></IconBtn>
-                <IconBtn title="Print" onClick={() => printReport(open)}><PrintIcon /></IconBtn>
+                <IconBtn title="Print / Save as PDF" onClick={() => printReport(open.title, docRef.current)}><PrintIcon /></IconBtn>
                 <IconBtn title="Delete" danger onClick={() => { remove({ reportId: open._id }); setOpenId(null); }}><TrashIcon /></IconBtn>
               </div>
             </div>
             <div className="max-h-[calc(100vh-14rem)] overflow-y-auto px-6 py-8">
-              <div className="mx-auto max-w-3xl">
+              <div ref={docRef} className="mx-auto max-w-3xl">
                 <ReportBody content={open.content} />
               </div>
             </div>
@@ -137,6 +145,10 @@ function ReportBody({ content }: { content: string }) {
   while (i < lines.length) {
     const line = lines[i].replace(/\s+$/, "");
     if (!line.trim()) { i++; continue; }
+
+    // A chart directive → a real trend graph drawn from the live record.
+    let cm = line.match(/^\[\[chart:(.+?)\]\]$/);
+    if (cm) { blocks.push(<ReportChart key={key++} code={cm[1]} />); i++; continue; }
 
     // Document title (# …) — rendered once, quietly, above the sections.
     let m = line.match(/^#\s+(.*)$/);
@@ -227,6 +239,38 @@ function ReportBody({ content }: { content: string }) {
   return <div className="[&>*:first-child]:mt-0">{blocks}</div>;
 }
 
+// A trend graph embedded in a report — drawn live from the record, so it prints
+// (and exports to PDF) as a real, current chart.
+function ReportChart({ code }: { code: string }) {
+  const { patientId } = useStore();
+  const metric = useQuery(api.health.getMetric, patientId ? { patientId, code } : "skip");
+  if (metric === undefined) return <div className="mb-4 h-40 rounded-md border border-line-soft bg-canvas" />;
+  if (!metric || metric.series.length < 2) return null;
+  const rising = metric.last > metric.first;
+  const bad = (metric.direction === "high_bad" && rising) || (metric.direction === "low_bad" && !rising);
+  const changePct = metric.first === 0 ? 0 : Math.round(((metric.last - metric.first) / metric.first) * 100);
+  return (
+    <figure className="mb-4 break-inside-avoid rounded-lg border border-line bg-canvas p-3">
+      <figcaption className="mb-1 flex items-baseline justify-between">
+        <span className="text-sm font-medium text-ink-900">{metric.label}</span>
+        <span className="flex items-baseline gap-1.5">
+          <span className="mono text-sm font-semibold text-ink-900">{fmtNum(metric.last)}</span>
+          <span className="text-2xs text-ink-400">{metric.unit}</span>
+          {metric.direction !== "neutral" && (
+            <span className={`mono text-2xs ${bad ? "text-bad" : "text-good"}`}>{rising ? "↑" : "↓"}{Math.abs(changePct)}%</span>
+          )}
+        </span>
+      </figcaption>
+      <TrendChart
+        points={metric.series.map((s: any) => ({ value: s.value, date: s.date }))}
+        unit={metric.unit}
+        refHigh={metric.refHigh}
+        height={170}
+      />
+    </figure>
+  );
+}
+
 // Minimal inline markdown: **bold** only (report content is otherwise plain).
 function inlineMd(text: string): ReactNode[] {
   return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((p, i) =>
@@ -256,14 +300,28 @@ function CopyIcon() { return <svg viewBox="0 0 16 16" className={svg} fill="none
 function PrintIcon() { return <svg viewBox="0 0 16 16" className={svg} fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6.5V2.5h8v4M4 11.5H3a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1M4 9.5h8v4H4z" /></svg>; }
 function TrashIcon() { return <svg viewBox="0 0 16 16" className={svg} fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.8 4.5l.4 8.5a1 1 0 0 0 1 .95h3.6a1 1 0 0 0 1-.95l.4-8.5" /></svg>; }
 
-function printReport(report: any) {
+// Print / Save-as-PDF the fully rendered document — including the live SVG trend
+// graphs. We copy the app's stylesheets so tables, headings and charts keep
+// their styling, and force the light theme for a clean white-paper PDF.
+function printReport(title: string, node: HTMLElement | null) {
+  if (!node) return;
   const w = window.open("", "_blank");
   if (!w) return;
+  const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map((n) => (n.tagName === "LINK" ? `<link rel="stylesheet" href="${(n as HTMLLinkElement).href}">` : n.outerHTML))
+    .join("");
   w.document.write(
-    `<html><head><title>${escapeHtml(report.title)}</title><style>body{font-family:Inter,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#18181b;line-height:1.6}h1,h2,h3{letter-spacing:-.01em}code{font-family:ui-monospace,monospace}</style></head><body><pre style="white-space:pre-wrap;font-family:inherit">${escapeHtml(report.content)}</pre></body></html>`,
+    `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${styles}` +
+      `<style>@page{margin:16mm}html,body{background:#fff}body{margin:0}` +
+      `.report-print{max-width:720px;margin:0 auto;padding:28px 24px}` +
+      `figure{break-inside:avoid;page-break-inside:avoid}</style></head>` +
+      `<body class="text-ink-900"><div class="report-print">${node.innerHTML}</div></body></html>`,
   );
   w.document.close();
-  w.print();
+  // Give the copied stylesheet + fonts a moment to load before printing.
+  const go = () => { w.focus(); w.print(); };
+  if (w.document.readyState === "complete") setTimeout(go, 500);
+  else w.onload = () => setTimeout(go, 400);
 }
 function escapeHtml(s: string) {
   return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
