@@ -383,6 +383,68 @@ export const exchangeAndConnect = action({
   },
 });
 
+// Connect an OPEN FHIR server (no OAuth/login). Fetched server-side, so no CORS
+// issues. Discovers a patient that has data, pulls the record, and stores it as a
+// connection (accessToken doubles as the optional static bearer some open servers
+// need, so the existing re-sync path works unchanged).
+export const connectOpenServer = action({
+  args: {
+    patientId: v.id("patients"),
+    providerId: v.string(),
+    provider: v.string(),
+    fhirBaseUrl: v.string(),
+    token: v.optional(v.string()), // static bearer for servers like ONC Inferno
+    patientFhirId: v.optional(v.string()), // pin a known patient (some servers reject list queries)
+  },
+  handler: async (ctx, a): Promise<{ patientName: string; counts: number }> => {
+    const bearer = a.token && a.token.length ? a.token : undefined;
+    const get = makeGet(a.fhirBaseUrl, bearer);
+
+    // Use a pinned patient when given; otherwise prefer one that actually has
+    // observations (open servers hold many near-empty patients), then fall back.
+    let pid: string | undefined = a.patientFhirId;
+    if (!pid) {
+      try {
+        const obs = await get(`/Observation?_count=1&_sort=-_lastUpdated`);
+        const ref: string | undefined = obs?.entry?.[0]?.resource?.subject?.reference;
+        if (ref && ref.includes("Patient/")) pid = ref.split("Patient/")[1].split(/[/?]/)[0];
+      } catch {
+        /* fall through */
+      }
+    }
+    if (!pid) {
+      const pats = await get(`/Patient?_count=1`).catch(() => null);
+      pid = pats?.entry?.[0]?.resource?.id;
+    }
+    if (!pid) throw new Error("Couldn't find a sample patient on this server.");
+
+    const data = await collectPatient(get, pid);
+    const result = await ctx.runMutation(internal.fhir.insertFhirBundle, {
+      patientId: a.patientId,
+      org: a.provider,
+      fhirBaseUrl: a.fhirBaseUrl,
+      fhirPatientId: pid,
+      patientName: data.patientName,
+      age: data.age,
+      observations: data.observations,
+      medications: data.medications,
+      conditions: data.conditions,
+      encounters: data.encounters,
+      allergies: data.allergies,
+    });
+    await ctx.runMutation(internal.fhir.saveConnection, {
+      patientId: a.patientId,
+      providerId: a.providerId,
+      provider: a.provider,
+      fhirBaseUrl: a.fhirBaseUrl,
+      patientFhirId: pid,
+      accessToken: a.token ?? "", // "" → open (no auth header); a bearer → sent on re-sync
+      counts: result.counts,
+    });
+    return { patientName: data.patientName, counts: result.counts };
+  },
+});
+
 export const getConnection = internalQuery({
   args: { connectionId: v.id("connections") },
   handler: async (ctx, { connectionId }) => ctx.db.get(connectionId),

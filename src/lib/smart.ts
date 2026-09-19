@@ -11,6 +11,9 @@ export type Provider = {
   testable: boolean; // works today without registration
   sandbox?: boolean; // true = synthetic test patients, not real people
   domain?: string; // for brand logo
+  open?: boolean; // open FHIR server: no OAuth/login — fetched server-side directly
+  openToken?: string; // a static bearer some "open" servers require (e.g. ONC Inferno)
+  openPatientId?: string; // pin a known patient (some open servers reject list queries)
 };
 
 // The public SMART sandbox works with any client id + PKCE — testable now.
@@ -58,7 +61,7 @@ export const PROVIDERS: Provider[] = [
   {
     id: "cerner",
     name: "Oracle Health (Cerner)",
-    blurb: "Oracle Health / Cerner sandbox. The SMART flow is wired — connecting needs a free Cerner developer client id.",
+    blurb: "Oracle Health / Cerner SMART login. The flow is wired — connecting needs a free Cerner developer client id.",
     // Cerner's public R4 sandbox tenant; SMART discovery lives at its .well-known.
     fhirBaseUrl: "https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d",
     clientId: import.meta.env.VITE_CERNER_CLIENT_ID as string | undefined,
@@ -66,6 +69,58 @@ export const PROVIDERS: Provider[] = [
     testable: false,
     sandbox: true,
     domain: "oracle.com",
+  },
+  {
+    id: "va",
+    name: "VA Health (Lighthouse)",
+    blurb: "U.S. Dept. of Veterans Affairs FHIR sandbox with synthetic Veteran records. Needs a free VA developer client id.",
+    fhirBaseUrl: "https://sandbox-api.va.gov/services/fhir/v0/r4",
+    clientId: import.meta.env.VITE_VA_CLIENT_ID as string | undefined,
+    scopes: "launch/patient patient/*.read openid fhirUser offline_access",
+    testable: false,
+    sandbox: true,
+    domain: "va.gov",
+  },
+
+  // ---- open FHIR servers: no login, fetched server-side, real R4 data ----
+  {
+    id: "hapi",
+    name: "HAPI FHIR (public server)",
+    blurb: "A public FHIR R4 test server — no login. We pull a sample synthetic patient's record. Great for a quick look.",
+    fhirBaseUrl: "https://hapi.fhir.org/baseR4",
+    clientId: undefined,
+    scopes: "",
+    testable: true,
+    sandbox: true,
+    open: true,
+    domain: "hapifhir.io",
+  },
+  {
+    id: "oracle-open",
+    name: "Oracle Health (open sample)",
+    blurb: "Oracle Health / Cerner's open sandbox — no login. Pulls a synthetic patient in Cerner's FHIR format.",
+    fhirBaseUrl: "https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d",
+    clientId: undefined,
+    scopes: "",
+    testable: true,
+    sandbox: true,
+    open: true,
+    // Cerner rejects open Patient/Observation list queries, so pin a data-rich patient.
+    openPatientId: "12724066",
+    domain: "oracle.com",
+  },
+  {
+    id: "inferno",
+    name: "ONC Inferno (US Core)",
+    blurb: "The U.S. ONC reference server — no login. Curated US Core R4 sample patients (clean, standards-conformant data).",
+    fhirBaseUrl: "https://inferno.healthit.gov/reference-server/r4",
+    clientId: undefined,
+    scopes: "",
+    testable: true,
+    sandbox: true,
+    open: true,
+    openToken: "SAMPLE_TOKEN",
+    domain: "healthit.gov",
   },
 ];
 
