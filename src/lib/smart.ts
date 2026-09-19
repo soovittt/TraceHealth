@@ -121,6 +121,8 @@ export const PROVIDERS: Provider[] = [
     sandbox: true,
     open: true,
     openToken: "SAMPLE_TOKEN",
+    // Pin a data-rich US Core patient (discovery lands on a near-empty test patient).
+    openPatientId: "355",
     domain: "healthit.gov",
   },
 ];
