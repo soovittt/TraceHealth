@@ -36,19 +36,6 @@ export const PROVIDERS: Provider[] = [
     domain: "smarthealthit.org",
   },
   {
-    id: "smart-sandbox-pick",
-    name: "SMART Health IT — pick a patient",
-    blurb: "Same official test server, but choose any synthetic patient at login — connect a few to compare records.",
-    // Unpinned base: standalone launch shows the sandbox patient picker; the
-    // selected patient comes back in the token response (`patient`).
-    fhirBaseUrl: "https://launch.smarthealthit.org/v/r4/fhir",
-    clientId: "tracehealth-app",
-    scopes: "launch/patient patient/*.read openid fhirUser offline_access",
-    testable: true,
-    sandbox: true,
-    domain: "smarthealthit.org",
-  },
-  {
     id: "epic",
     name: "Epic MyChart",
     blurb: "Real hospitals on Epic. The SMART flow is wired — connecting needs a free Epic developer client id.",
