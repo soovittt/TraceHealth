@@ -184,40 +184,53 @@ export default function Integrations() {
           const connectable = p.open || !!p.clientId;
           const isConnected = (connections ?? []).some((c: any) => c.providerId === p.id);
           return (
-            <div key={p.id} className="card flex items-start justify-between gap-3 p-4">
+            <div key={p.id} className="card flex h-full flex-col p-4">
+              {/* header: logo + name + status badges */}
               <div className="flex items-start gap-3">
                 <ProviderLogo domain={p.domain} label={p.name} />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-ink-900">{p.name}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium leading-snug text-ink-900">{p.name}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {p.open ? (
-                      <span className="tag">Open · no login</span>
+                      <span className="tag whitespace-nowrap">Open · no login</span>
                     ) : p.sandbox ? (
-                      <span className="tag border-warn-line text-warn">Sandbox</span>
+                      <span className="tag whitespace-nowrap border-warn-line text-warn">Sandbox</span>
                     ) : null}
-                    {!connectable && <span className="tag">Needs setup</span>}
+                    {isConnected && (
+                      <span className="tag whitespace-nowrap border-good/30 text-good-ink">
+                        <span className="mr-1 h-1.5 w-1.5 rounded-full bg-good" /> Connected
+                      </span>
+                    )}
                   </div>
-                  <div className="mt-0.5 text-xs text-ink-500">{p.blurb}</div>
-                  {p.loginHint && (
-                    <div className="mt-1 inline-block rounded border border-line-soft bg-canvas px-1.5 py-0.5 text-2xs text-ink-500">
-                      <span className="mono">{p.loginHint}</span>
-                    </div>
-                  )}
                 </div>
               </div>
-              {isConnected ? (
-                <span className="tag shrink-0 border-good/30 text-good-ink">
-                  <span className="mr-1 h-1.5 w-1.5 rounded-full bg-good" /> Connected
-                </span>
-              ) : connectable ? (
-                <button data-tour={p.id === "smart-sandbox" ? "connect-btn" : undefined} className="btn-primary shrink-0 text-xs" onClick={() => connect(p)} disabled={busy === `c:${p.id}`}>
-                  {busy === `c:${p.id}` ? "Connecting…" : "Connect"}
-                </button>
-              ) : (
-                <button className="btn-ghost shrink-0 text-xs" disabled>
-                  Soon
-                </button>
+
+              {/* blurb fills the middle so all cards' buttons align at the bottom */}
+              <p className="mt-2 flex-1 text-xs leading-relaxed text-ink-500">{p.blurb}</p>
+
+              {p.loginHint && (
+                <div className="mt-2 rounded border border-line-soft bg-canvas px-2 py-1 text-2xs text-ink-500">
+                  <span className="mono">{p.loginHint}</span>
+                </div>
               )}
+
+              {/* action — full width, pinned to the bottom (uniform across cards) */}
+              <div className="mt-3">
+                {connectable ? (
+                  <button
+                    data-tour={p.id === "smart-sandbox" ? "connect-btn" : undefined}
+                    className="btn-primary w-full text-xs"
+                    onClick={() => connect(p)}
+                    disabled={busy === `c:${p.id}`}
+                  >
+                    {busy === `c:${p.id}` ? "Connecting…" : isConnected ? "Reconnect" : "Connect"}
+                  </button>
+                ) : (
+                  <button className="btn-secondary w-full text-xs opacity-60" disabled title="Needs a developer client id">
+                    Needs setup
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
