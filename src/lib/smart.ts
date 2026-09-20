@@ -22,12 +22,10 @@ export const PROVIDERS: Provider[] = [
   {
     id: "smart-sandbox",
     name: "SMART Health IT Sandbox",
-    blurb: "Official developer test server. Real patient login + consent, but synthetic test patients — not real people.",
-    // Patient-standalone launch pinned to a data-rich patient (314 obs) + skip the
-    // picker, so it ALWAYS lands on a full record → consent only.
-    // {"k":"1","b":"ede897d1-...","i":"1"} (base64url).
-    fhirBaseUrl:
-      "https://launch.smarthealthit.org/v/r4/sim/eyJrIjoiMSIsImIiOiJlZGU4OTdkMS1iMGQ0LTQ0MDEtOWM4Yi00NWNjZjYzN2NiYmQiLCJpIjoiMSJ9/fhir",
+    blurb: "Official developer test server. Log in, pick any synthetic patient, and authorize — connect a few to compare records.",
+    // Unpinned base: standalone launch shows the sandbox patient picker; the
+    // chosen patient comes back in the token response (`patient`).
+    fhirBaseUrl: "https://launch.smarthealthit.org/v/r4/fhir",
     clientId: "tracehealth-app",
     // read for import + write so a report can be written back as a DocumentReference.
     scopes: "launch/patient patient/*.read patient/*.write openid fhirUser offline_access",
