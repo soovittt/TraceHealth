@@ -198,6 +198,11 @@ export default function Integrations() {
                     {!connectable && <span className="tag">Needs setup</span>}
                   </div>
                   <div className="mt-0.5 text-xs text-ink-500">{p.blurb}</div>
+                  {p.loginHint && (
+                    <div className="mt-1 inline-block rounded border border-line-soft bg-canvas px-1.5 py-0.5 text-2xs text-ink-500">
+                      <span className="mono">{p.loginHint}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               {isConnected ? (

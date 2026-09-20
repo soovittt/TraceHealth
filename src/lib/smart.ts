@@ -14,6 +14,7 @@ export type Provider = {
   open?: boolean; // open FHIR server: no OAuth/login — fetched server-side directly
   openToken?: string; // a static bearer some "open" servers require (e.g. ONC Inferno)
   openPatientId?: string; // pin a known patient (some open servers reject list queries)
+  loginHint?: string; // sandbox test credentials to show on the card
 };
 
 // The public SMART sandbox works with any client id + PKCE — testable now.
@@ -36,12 +37,14 @@ export const PROVIDERS: Provider[] = [
   {
     id: "epic",
     name: "Epic MyChart",
-    blurb: "Real hospitals on Epic. The SMART flow is wired — connecting needs a free Epic developer client id.",
+    blurb: "Real Epic hospitals over SMART on FHIR — sandbox test patients.",
     fhirBaseUrl: "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
     clientId: import.meta.env.VITE_EPIC_CLIENT_ID as string | undefined,
     scopes: "launch/patient patient/*.read openid fhirUser offline_access",
     testable: false,
+    sandbox: true,
     domain: "epic.com",
+    loginHint: "Sandbox login: fhircamila / epicepic1",
   },
   {
     id: "cerner",
