@@ -193,7 +193,7 @@ export default function Integrations() {
                     {p.open ? (
                       <span className="tag">Open · no login</span>
                     ) : p.sandbox ? (
-                      <span className="tag border-warn-line text-warn">Test data</span>
+                      <span className="tag border-warn-line text-warn">Sandbox</span>
                     ) : null}
                     {!connectable && <span className="tag">Needs setup</span>}
                   </div>
