@@ -21,11 +21,12 @@ export default function Landing() {
   }
 
   // Zero-typing entry: create a throwaway guest account and drop straight into
-  // the app, where one click loads a full sample record.
+  // the app. Idempotent — if a guest session already exists, reuse it instead of
+  // spawning a NEW guest (which would fragment connections across accounts).
   async function tryAsGuest() {
     setGuesting(true);
     try {
-      await signIn("anonymous");
+      if (!isAuthenticated) await signIn("anonymous");
       go("home"); // land on the app; the tour then walks them to Connections to add data
     } catch {
       setGuesting(false);
