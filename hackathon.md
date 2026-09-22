@@ -4,17 +4,33 @@
 - **Event:** Convex All Gas Hackathon
 - **What it does:** Turns years of scattered medical records from multiple providers into one interactive, evidence-backed longitudinal health history.
 - **Live app:** https://ideal-swan-48.convex.site
+- **Demo video:** https://youtu.be/LJQBlzxFDoE
 - **Repo:** https://github.com/soovittt/TraceHealth
 - **Frontend:** Convex static hosting
 - **Convex deployment:** https://ideal-swan-48.convex.cloud
 - **Components:** @convex-dev/static-hosting
 - **Convex features:** schema, tables, indexes, full-text search, queries, mutations, actions, internal functions, HTTP actions, crons, scheduled functions, file storage, realtime queries, paginated queries, registered components
 - **Auth:** Convex Auth (Password + Anonymous)
-- **AI models:** gpt-4o (OpenAI — vision document extraction, assistant tool-loop), gpt-4o-mini (summaries/reports)
+- **AI models:** gpt-4o (OpenAI, vision document extraction + assistant tool-loop), gpt-4o-mini (summaries/reports)
 - **Started:** 2026-08-28T05:09:47Z
-- **Last updated:** 2026-09-19T20:45:00Z
+- **Last updated:** 2026-09-21T23:30:00Z
 
 ## Log
+
+### 2026-09-21 - 79f516a
+Expanded the connector suite and made multi-provider real. Added connectors for
+**Epic MyChart** and **VA Health (Lighthouse)** sandboxes (real SMART on FHIR
+OAuth + PKCE, client ids via env) and three **open FHIR servers** pulled
+server-side with no login (HAPI FHIR, Oracle Health open sandbox, ONC Inferno /
+US Core) via a new `fhir.connectOpenServer` action that discovers or pins a
+data-rich patient and reuses the collect/insert/re-sync path (`convex/fhir.ts`,
+`src/lib/smart.ts`). Verified in prod: connecting multiple providers accumulates
+onto one record (SMART 139 + Epic 8 merged) instead of overwriting. Fixed a
+guest-session bug where each OAuth connect fragmented into a new anonymous
+account, so connections now stack on one guest (`src/components/Landing.tsx`).
+Reworked the Connections UI into uniform, equal-height provider cards with
+"Sandbox" / "Open, no login" labels and bottom-aligned actions
+(`src/components/Integrations.tsx`). Recorded the 3-minute demo video.
 
 ### 2026-09-19 - cd97fa2
 Shipped to production on **Convex static hosting**: registered the
