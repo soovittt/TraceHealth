@@ -31,8 +31,9 @@ record it came from.
 
 ## What you can do
 
-- **Connect a provider.** Log in through your provider (SMART on FHIR) and your labs,
-  meds, conditions, visits, and allergies sync in automatically.
+- **Connect your providers.** Log in over **SMART on FHIR** — Epic, the VA, SMART Health IT,
+  and open FHIR sandboxes — and your labs, meds, conditions, visits, and allergies sync in.
+  Connect several and they **merge into one source-traceable history**.
 - **See your whole story.** A clean timeline, trend charts with normal-range lines,
   and before/after comparisons across the years.
 - **Trust every number.** Click any value to see the exact document it came from.
