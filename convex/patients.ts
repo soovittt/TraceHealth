@@ -37,7 +37,7 @@ const PATIENT_TABLES: Record<string, string> = {
   conditions: "by_patient", encounters: "by_patient", allergies: "by_patient", conflicts: "by_patient",
   missingRecords: "by_patient", shares: "by_patient", processingJobs: "by_patient", connections: "by_patient",
   reports: "by_patient", exports: "by_patient", ingestJobs: "by_patient", reportSchedules: "by_patient",
-  conversations: "by_patient", chatMessages: "by_patient",
+  conversations: "by_patient", chatMessages: "by_patient", notifications: "by_patient",
   events: "by_patient_date", // no plain by_patient index — use the compound one (prefix on patientId)
 };
 
